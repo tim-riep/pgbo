@@ -1,10 +1,59 @@
-# pgbo Documentation
+---
+layout: home
 
-Type-safe PostgreSQL Business Objects — tables, views, domains, auto-migration, native i18n.
+hero:
+  name: pgbo
+  text: Type-safe PostgreSQL Business Objects
+  tagline: Tables, views, domains, auto-migration, native i18n — built on PostgreSQL, with zero codegen.
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /architecture
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/tim-riep/pgbo
 
-## Architecture
+features:
+  - title: Three-layer architecture
+    details: Tables for storage, views for access, Business Objects for lifecycle. Application code only talks to views.
+  - title: Type inference, no codegen
+    details: InferRow, InferInsert, InferUpdate, InferViewRow derive TS types from your schema at compile time via generics.
+  - title: PostgreSQL-native
+    details: Domains, updatable views, materialized views, range types, JSONB, arrays, enums, INSTEAD OF triggers.
+  - title: Auto-migration
+    details: CLI introspects pg_catalog, diffs against your TypeScript definitions, executes migration plans transactionally.
+  - title: Read-only by default
+    details: BOs only allow writes when actions are explicitly defined. Compositions, associations, lifecycle hooks built in.
+  - title: Framework adapters
+    details: "@pgbo/core is framework-agnostic. @pgbo/fastify plugs into Fastify for CRUD routes, metadata, and pagination."
+---
 
-pgbo is built around a three-layer abstraction:
+## Quick start
+
+```bash
+npm install @pgbo/core
+```
+
+```typescript
+import { createDatabase } from '@pgbo/core'
+import { table, view, text, integer } from '@pgbo/core/schema'
+
+const warehouse = table('warehouse', {
+  columns: {
+    slug: text().notNull(),
+    name: text().notNull(),
+    capacity: integer().min(0),
+  },
+  primaryKey: ['slug'],
+})
+
+const warehouseView = view('warehouse_view').from(warehouse)
+
+const db = createDatabase({ connectionString: 'postgresql://localhost/mydb' })
+const rows = await db.from(warehouseView).execute()
+```
+
+## The three-layer model
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -22,68 +71,6 @@ pgbo is built around a three-layer abstraction:
 └─────────────────────────────────────────────────┘
 ```
 
-**Key principle:** Application code never touches tables directly. All reads and writes flow through views. Views become Business Objects when they need CRUD lifecycle, permissions, and hooks.
+Application code never touches tables directly. All reads and writes flow through views. Views become Business Objects when they need CRUD lifecycle, permissions, and hooks.
 
-## Installation
-
-```bash
-npm install @pgbo/core
-```
-
-Optional peer dependency for validation:
-
-```bash
-npm install zod@4
-```
-
-## Quick Start
-
-```typescript
-import { createDatabase } from '@pgbo/core'
-import { table, view, text, integer, timestamp, index } from '@pgbo/core/schema'
-import { introspect, diff, migrate } from '@pgbo/core/migration'
-
-// 1. Define tables
-const warehouseTable = table('warehouse', {
-  columns: {
-    slug: text().notNull(),
-    name: text().notNull(),
-    capacity: integer().min(0),
-    createdAt: timestamp().withTimeZone().defaultNow(),
-  },
-  primaryKey: ['slug'],
-  indexes: [index('name')],
-})
-
-// 2. Define views (the application interface)
-const warehouseView = view('warehouse_view').from(warehouseTable)
-
-// 3. Connect and migrate
-const db = createDatabase({ connectionString: 'postgresql://localhost:5432/mydb' })
-const snapshot = await introspect(db)
-const plan = diff(
-  { domains: [], enums: [], tables: [warehouseTable], views: [warehouseView] },
-  snapshot,
-)
-await migrate(db, plan)
-
-// 4. Query through views
-const warehouses = await db.from(warehouseView).execute()
-await db.into(warehouseView).values({ slug: 'main', name: 'Main' }).execute()
-
-await db.close()
-```
-
-## Table of Contents
-
-- [Architecture](architecture.md) — The three-layer model, design principles, package layout
-- [Schema Definition](schema.md) — Tables, columns, domains, enums, constraints, views
-- [Query Builder](query.md) — SELECT, INSERT, UPDATE, DELETE, transactions, raw SQL
-- [Migration Engine](migration.md) — Introspect, diff, migrate
-- [Business Objects](bo.md) — defineBO, actions, compositions
-- [Validation](validation.md) — Zod schema generation
-- [Seed System](seed.md) — Declarative seeding with upsert and FK ordering
-- [Metadata](metadata.md) — viewMeta, boMeta, searchWhere, filterWhere, enrichItems
-- [Testing](testing.md) — Disposable test databases, fixtures, assertions
-- [CLI](cli.md) — Command-line tools
-- [i18n](i18n.md) — Native translation support
+**Next steps** — read the [Architecture](/architecture) overview, then dive into [Schema Definition](/schema), [Query Builder](/query), or [Business Objects](/bo).

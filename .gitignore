@@ -3,3 +3,7 @@ dist/
 *.tsbuildinfo
 .env
 .claude
+
+# VitePress
+docs/.vitepress/cache/
+docs/.vitepress/dist/
