@@ -74,3 +74,4 @@ const rows = await db.from(warehouseView).execute()
 Application code never touches tables directly. All reads and writes flow through views. Views become Business Objects when they need CRUD lifecycle, permissions, and hooks.
 
 **Next steps** — read the [Architecture](/architecture) overview, then dive into [Schema Definition](/schema), [Query Builder](/query), or [Business Objects](/bo).
+
