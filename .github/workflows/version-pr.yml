@@ -6,6 +6,9 @@ name: Version PR
 on:
   push:
     branches: [main]
+    paths:
+      - '.changeset/**'
+      - 'packages/**'
 
 concurrency:
   group: version-pr-${{ github.ref }}
