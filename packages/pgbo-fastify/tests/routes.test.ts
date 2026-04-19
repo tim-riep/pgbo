@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
-import { table } from 'pgbo/schema'
-import { text, integer } from 'pgbo/schema'
-import { view } from 'pgbo/schema'
-import { defineBO } from 'pgbo/bo'
-import { createTestDatabase, type TestDatabase } from 'pgbo/testing'
+import { table, text, integer, view } from '@pgbo/core/schema'
+import { defineBO } from '@pgbo/core/bo'
+import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
 import { registerBoRoutes, registerViewRoute } from '../src/index.js'
 
 const connectionString = process.env.PGBO_TEST_URL ?? 'postgresql://localhost:5432/postgres'

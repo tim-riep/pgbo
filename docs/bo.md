@@ -5,7 +5,7 @@ A Business Object (BO) is a managed entity that wraps a view with CRUD lifecycle
 ## Defining a BO
 
 ```typescript
-import { defineBO } from 'pgbo/bo'
+import { defineBO } from '@pgbo/core/bo'
 
 const warehouseBO = defineBO(warehouseTable, {
   paramField: 'slug',
@@ -190,7 +190,7 @@ On delete, PostgreSQL FK cascades handle child cleanup automatically.
 Compositions are also batch-loaded on reads via `enrichCompositions()`:
 
 ```typescript
-import { enrichCompositions } from 'pgbo/bo'
+import { enrichCompositions } from '@pgbo/core/bo'
 
 const items = await db.from(menuGroupView).execute()
 const enriched = await enrichCompositions(db, menuGroupBO, items)

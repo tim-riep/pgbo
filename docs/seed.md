@@ -5,7 +5,7 @@ Declarative data seeding with idempotent upserts, FK ordering, and stale cleanup
 ## Defining Seeds
 
 ```typescript
-import { seed, tableSeed } from 'pgbo/seed'
+import { seed, tableSeed } from '@pgbo/core/seed'
 
 await seed(db, [
   tableSeed(tenantTable, [

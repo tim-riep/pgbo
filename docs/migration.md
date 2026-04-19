@@ -5,8 +5,8 @@ pgbo includes an automatic migration engine that keeps your PostgreSQL database 
 ## Workflow
 
 ```typescript
-import { createDatabase } from 'pgbo'
-import { introspect, diff, migrate, type SchemaDefinitions } from 'pgbo/migration'
+import { createDatabase } from '@pgbo/core'
+import { introspect, diff, migrate, type SchemaDefinitions } from '@pgbo/core/migration'
 
 const db = createDatabase({ connectionString: '...' })
 

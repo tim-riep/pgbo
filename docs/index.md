@@ -27,7 +27,7 @@ pgbo is built around a three-layer abstraction:
 ## Installation
 
 ```bash
-npm install pgbo
+npm install @pgbo/core
 ```
 
 Optional peer dependency for validation:
@@ -39,9 +39,9 @@ npm install zod@4
 ## Quick Start
 
 ```typescript
-import { createDatabase } from 'pgbo'
-import { table, view, text, integer, timestamp, index } from 'pgbo/schema'
-import { introspect, diff, migrate } from 'pgbo/migration'
+import { createDatabase } from '@pgbo/core'
+import { table, view, text, integer, timestamp, index } from '@pgbo/core/schema'
+import { introspect, diff, migrate } from '@pgbo/core/migration'
 
 // 1. Define tables
 const warehouseTable = table('warehouse', {

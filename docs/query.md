@@ -5,7 +5,7 @@ All queries go through **views**, never tables. pgbo automatically converts came
 ## Connection
 
 ```typescript
-import { createDatabase } from 'pgbo'
+import { createDatabase } from '@pgbo/core'
 
 const db = createDatabase({
   connectionString: 'postgresql://user@localhost:5432/mydb',
@@ -65,7 +65,7 @@ The `distinct` key is type-checked against the view's row type.
 `SelectBuilder` supports ad-hoc JOINs when a predefined PG view isn't enough:
 
 ```typescript
-import { view } from 'pgbo/schema'
+import { view } from '@pgbo/core/schema'
 
 const tileView = view('tile_view').from(tileTable)
 

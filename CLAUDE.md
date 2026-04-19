@@ -10,8 +10,8 @@ pgbo is a type-safe PostgreSQL Business Objects library. It replaces Prisma with
 
 This is an npm workspaces monorepo with two packages:
 
-- **`packages/pgbo`** — Core library: schema DSL, query builder, migrations, BO framework, metadata
-- **`packages/pgbo-fastify`** — Fastify adapter: route factory for CRUD endpoints, pagination, metadata routes
+- **`packages/pgbo`** (published as `@pgbo/core`) — Core library: schema DSL, query builder, migrations, BO framework, metadata
+- **`packages/pgbo-fastify`** (published as `@pgbo/fastify`) — Fastify adapter: route factory for CRUD endpoints, pagination, metadata routes
 
 ## Commands
 
@@ -25,8 +25,8 @@ This is an npm workspaces monorepo with two packages:
 - **Type check:** `npm run typecheck` (runs `tsc --noEmit`)
 - **Test all:** `npx vitest run`
 - **Test single file:** `npx vitest tests/schema/column-types.test.ts`
-- **Test with coverage:** `npm run test:coverage` (pgbo only)
-- **Lint:** `npm run lint` (pgbo only)
+- **Test with coverage:** `npm run test:coverage` (core only)
+- **Lint:** `npm run lint`
 
 ## Architecture
 
@@ -54,13 +54,13 @@ This is an npm workspaces monorepo with two packages:
 - **Views are the API boundary.** Simple views are auto-updatable; complex views get `INSTEAD OF` triggers.
 - **BOs are read-only by default.** Actions (create, update, delete) must be explicitly defined with permission checks and hooks.
 - **Type inference without codegen.** `InferRow<V>`, `InferInsert<V>`, `InferUpdate<V>` derive TS types from schema definitions.
-- **Fastify adapter is a separate package.** Framework-specific code stays out of the core. pgbo provides primitives; pgbo-fastify wires them into routes.
+- **Fastify adapter is a separate package.** Framework-specific code stays out of the core. `@pgbo/core` provides primitives; `@pgbo/fastify` wires them into routes.
 
 ## Development Approach
 
-- TDD: tests are written first, then implementation. See `IMPLEMENTATION.md` for the phased plan.
+- TDD: tests are written first, then implementation.
 - Tests live in `packages/*/tests/` with pattern `tests/**/*.test.ts`.
 - File parallelism is disabled in vitest — each test gets its own database. Test timeout is 30s.
 - ES modules (`"type": "module"`) with Node16 module resolution. Target ES2022.
 - `noUncheckedIndexedAccess: true` is enabled in tsconfig — handle `undefined` on indexed access.
-- pgbo-fastify depends on pgbo via npm workspace link. Build pgbo first before typechecking pgbo-fastify.
+- `@pgbo/fastify` depends on `@pgbo/core` via npm workspace link. Build the core first before typechecking the adapter.

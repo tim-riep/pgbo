@@ -1,9 +1,9 @@
 // Query helpers for route handlers
 
-import type { Database } from 'pgbo'
-import type { ViewDef } from 'pgbo/schema'
-import type { PaginatedResult, ListParams, WhereConditions } from 'pgbo/query'
-import { viewMeta } from 'pgbo/metadata'
+import type { Database } from '@pgbo/core'
+import type { ViewDef } from '@pgbo/core/schema'
+import type { PaginatedResult, ListParams, WhereConditions } from '@pgbo/core/query'
+import { viewMeta } from '@pgbo/core/metadata'
 
 export interface PaginateOptions {
   readonly db: Database

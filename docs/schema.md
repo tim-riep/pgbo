@@ -13,7 +13,7 @@ import {
   boolean, uuid, timestamp, date, time, interval,
   jsonb, json, bytea, array,
   daterange, int4range, numrange, tsrange, tstzrange,
-} from 'pgbo/schema'
+} from '@pgbo/core/schema'
 ```
 
 ### Type Mapping
@@ -72,7 +72,7 @@ timestamp().withTimeZone()          // timestamptz
 ## Tables
 
 ```typescript
-import { table, text, integer, timestamp, index, foreignKey, check } from 'pgbo/schema'
+import { table, text, integer, timestamp, index, foreignKey, check } from '@pgbo/core/schema'
 
 const warehouse = table('warehouse', {
   columns: {
@@ -137,7 +137,7 @@ CREATE TABLE area_translation (
 Reusable constrained types. A domain wraps a column type with validation and optional FK references:
 
 ```typescript
-import { domain, text, integer } from 'pgbo/schema'
+import { domain, text, integer } from '@pgbo/core/schema'
 
 const slug = domain('slug', text().minLength(1).maxLength(128).pattern(/^[a-z0-9-]+$/))
 const tenantId = domain('tenant_id', integer()).references('tenant', 'id', 'CASCADE')
@@ -155,7 +155,7 @@ CREATE DOMAIN warehouse_slug AS slug
 ## Enums
 
 ```typescript
-import { pgEnum } from 'pgbo/schema'
+import { pgEnum } from '@pgbo/core/schema'
 
 const stockType = pgEnum('stock_type', ['RECEIPT', 'ADJUSTMENT', 'TRANSFER'])
 
@@ -176,7 +176,7 @@ DDL: `CREATE TYPE stock_type AS ENUM ('RECEIPT', 'ADJUSTMENT', 'TRANSFER')`
 Views are the **only interface** between application code and the database:
 
 ```typescript
-import { view, valueHelpView, col, translated } from 'pgbo/schema'
+import { view, valueHelpView, col, translated } from '@pgbo/core/schema'
 
 const warehouseView = view('warehouse_view')
   .from(warehouseTable)
@@ -235,7 +235,7 @@ const warehouseView = view('warehouse_view')
 Count related child rows as a scalar view column — no raw SQL, no second query:
 
 ```typescript
-import { view, col, subqueryCount } from 'pgbo/schema'
+import { view, col, subqueryCount } from '@pgbo/core/schema'
 
 const stockDocumentListView = view('stock_document_list_view')
   .from(stockDocumentTable)
@@ -384,7 +384,7 @@ col('slug')
 Types are inferred from definitions at compile time — no code generation:
 
 ```typescript
-import type { InferRow, InferInsert, InferUpdate } from 'pgbo/schema'
+import type { InferRow, InferInsert, InferUpdate } from '@pgbo/core/schema'
 
 type WarehouseRow = InferRow<typeof warehouseTable>
 // { slug: string; tenantId: number; name: string; capacity: number | null; createdAt: Date | null }

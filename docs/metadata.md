@@ -7,7 +7,7 @@ pgbo extracts structured metadata from view annotations for use by consuming app
 Extracts field metadata from a view definition:
 
 ```typescript
-import { viewMeta } from 'pgbo/metadata'
+import { viewMeta } from '@pgbo/core/metadata'
 
 const meta = viewMeta(areaView)
 // {
@@ -53,7 +53,7 @@ Override with `.filterType('select').filterOptions([...])`.
 Extends `viewMeta` with BO-specific information:
 
 ```typescript
-import { boMeta } from 'pgbo/metadata'
+import { boMeta } from '@pgbo/core/metadata'
 
 const meta = boMeta(areaBO, {
   translations: { table: areaTranslationTable, parentKey: 'areaId', fields: ['name'] },
@@ -76,7 +76,7 @@ Translation fields are injected as `kind: 'translation'` with `searchable: true`
 Builds a parameterized OR clause over all `.searchable()` columns:
 
 ```typescript
-import { searchWhere } from 'pgbo/metadata'
+import { searchWhere } from '@pgbo/core/metadata'
 
 const result = searchWhere(areaView, 'admin')
 // result.text:   '(slug ILIKE $1)'
@@ -101,7 +101,7 @@ if (searchClause) {
 Strips non-filterable keys from user-provided filter params:
 
 ```typescript
-import { filterWhere } from 'pgbo/metadata'
+import { filterWhere } from '@pgbo/core/metadata'
 
 const safe = filterWhere(areaView, {
   slug: 'admin',     // filterable → kept
@@ -118,7 +118,7 @@ Respects `.filterKey()` overrides — if a column has `.filterKey('otherCol')`, 
 Batch-resolves translations for a list of items in a single SQL query:
 
 ```typescript
-import { enrichItems } from 'pgbo/metadata'
+import { enrichItems } from '@pgbo/core/metadata'
 
 const enriched = await enrichItems(db, rawItems, {
   translationTable: 'area_translation',

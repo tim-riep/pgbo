@@ -7,7 +7,7 @@ pgbo includes built-in testing utilities for creating disposable databases, mana
 `createTestDatabase()` creates a temporary PostgreSQL database, applies schema DDL, and optionally seeds data. On dispose, it drops the database.
 
 ```typescript
-import { createTestDatabase } from 'pgbo/testing'
+import { createTestDatabase } from '@pgbo/core/testing'
 
 const testDb = await createTestDatabase({
   connectionString: 'postgresql://localhost:5432/postgres',
@@ -45,7 +45,7 @@ interface TestDatabaseConfig {
 
 ```typescript
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest'
-import { createTestDatabase, type TestDatabase } from 'pgbo/testing'
+import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
 
 describe('Warehouse', () => {
   let testDb: TestDatabase
@@ -79,7 +79,7 @@ describe('Warehouse', () => {
 Typed seed data with insert and cleanup helpers:
 
 ```typescript
-import { fixture } from 'pgbo/testing'
+import { fixture } from '@pgbo/core/testing'
 
 const warehouses = fixture(warehouseTable, [
   { slug: 'wh1', name: 'Warehouse 1' },
@@ -100,7 +100,7 @@ await warehouses.cleanup(testDb.db)
 Verify that expected database objects exist:
 
 ```typescript
-import { assertMigration } from 'pgbo/testing'
+import { assertMigration } from '@pgbo/core/testing'
 
 await assertMigration(testDb, {
   tables: ['warehouse', 'product'],
@@ -115,7 +115,7 @@ await assertMigration(testDb, {
 Verify table structure:
 
 ```typescript
-import { assertSchema } from 'pgbo/testing'
+import { assertSchema } from '@pgbo/core/testing'
 
 await assertSchema(testDb, 'warehouse', {
   columns: { slug: 'text', name: 'text', created_at: 'timestamp' },

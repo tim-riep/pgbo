@@ -1,0 +1,46 @@
+name: Version PR
+
+# Keeps the "chore: version packages" PR up to date as changesets land on main.
+# Does NOT publish to npm — publishing is handled by the separate Publish workflow.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: version-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Open or update version PR
+    runs-on: ubuntu-latest
+
+    # Skip when the push is FROM changesets/action itself (avoids infinite loops)
+    if: github.actor != 'github-actions[bot]' || github.event.head_commit.author.email != 'noreply@github.com'
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Open/update version PR
+        uses: changesets/action@v1
+        with:
+          version: npm run version
+          commit: "chore: version packages"
+          title: "chore: version packages"
+          # No `publish:` input — this workflow never publishes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

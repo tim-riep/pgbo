@@ -1,5 +1,5 @@
 {
-  "name": "pgbo",
+  "name": "@pgbo/core",
   "version": "0.1.0",
   "description": "Type-safe PostgreSQL Business Objects — tables, views, domains, auto-migration, native i18n",
   "type": "module",
@@ -67,6 +67,23 @@
   ],
   "author": "Tim Riep <tim@riep-tech.de>",
   "license": "MIT",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tim-riep/pgbo.git",
+    "directory": "packages/pgbo"
+  },
+  "bugs": {
+    "url": "https://github.com/tim-riep/pgbo/issues"
+  },
+  "homepage": "https://github.com/tim-riep/pgbo#readme",
   "engines": {
     "node": ">=20"
   },

@@ -1,5 +1,5 @@
 {
-  "name": "pgbo-fastify",
+  "name": "@pgbo/fastify",
   "version": "0.1.0",
   "description": "Fastify route factory for pgbo Business Objects — CRUD, metadata, value helps, pagination",
   "type": "module",
@@ -27,11 +27,28 @@
   ],
   "author": "Tim Riep <tim@riep-tech.de>",
   "license": "MIT",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tim-riep/pgbo.git",
+    "directory": "packages/pgbo-fastify"
+  },
+  "bugs": {
+    "url": "https://github.com/tim-riep/pgbo/issues"
+  },
+  "homepage": "https://github.com/tim-riep/pgbo#readme",
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "pgbo": "0.1.0"
+    "@pgbo/core": "0.1.0"
   },
   "peerDependencies": {
     "fastify": "^5.0.0"

@@ -1,11 +1,11 @@
 // BO and View route factories for Fastify
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import type { Database } from 'pgbo'
-import type { ViewDef } from 'pgbo/schema'
-import { parseListParams } from 'pgbo/query'
-import { boMeta, viewMeta, type BOMeta, type FieldMeta } from 'pgbo/metadata'
-import { enrichCompositions } from 'pgbo/bo'
+import type { Database } from '@pgbo/core'
+import type { ViewDef } from '@pgbo/core/schema'
+import { parseListParams } from '@pgbo/core/query'
+import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
+import { enrichCompositions } from '@pgbo/core/bo'
 import type { BoRouteConfig, ViewRouteConfig } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
 

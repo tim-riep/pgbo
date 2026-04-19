@@ -13,7 +13,7 @@ npm install zod@4
 ## Usage
 
 ```typescript
-import { zodSchemas, zodToJsonSchema } from 'pgbo/validation'
+import { zodSchemas, zodToJsonSchema } from '@pgbo/core/validation'
 
 const schemas = zodSchemas(warehouseTable)
 ```

@@ -40,7 +40,7 @@ The schema file must export a `default` or named `schema` export of type `Schema
 
 ```typescript
 // schema.ts
-import type { SchemaDefinitions } from 'pgbo/migration'
+import type { SchemaDefinitions } from '@pgbo/core/migration'
 
 export const schema: SchemaDefinitions = {
   domains: [...],

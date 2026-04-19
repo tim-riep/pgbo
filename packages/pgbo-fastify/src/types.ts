@@ -1,9 +1,9 @@
 // Route factory configuration types
 
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import type { Database } from 'pgbo'
-import type { ViewDef, ValueHelpViewDef } from 'pgbo/schema'
-import type { BusinessObjectDef } from 'pgbo/bo'
+import type { Database } from '@pgbo/core'
+import type { ViewDef, ValueHelpViewDef } from '@pgbo/core/schema'
+import type { BusinessObjectDef } from '@pgbo/core/bo'
 
 export interface RouteContext {
   readonly app: FastifyInstance

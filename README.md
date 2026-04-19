@@ -10,8 +10,17 @@ A TypeScript framework for PostgreSQL that enforces a clean three-layer architec
 
 ## Packages
 
-- **[`pgbo`](packages/pgbo)** — core library: schema DSL, query builder, migrations, BO framework, metadata, validation, seeding, testing.
-- **[`pgbo-fastify`](packages/pgbo-fastify)** — Fastify route factory for CRUD, metadata, value helps, pagination.
+| Package | Description |
+|---|---|
+| [`@pgbo/core`](packages/pgbo) | Schema DSL, query builder, migrations, BO framework, metadata, validation, seeding, testing |
+| [`@pgbo/fastify`](packages/pgbo-fastify) | Fastify route factory for CRUD, metadata, value helps, pagination |
+
+## Install
+
+```bash
+npm install @pgbo/core
+npm install @pgbo/fastify   # if using Fastify
+```
 
 ## Key concepts
 
