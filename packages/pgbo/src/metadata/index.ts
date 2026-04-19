@@ -1,0 +1,344 @@
+// Annotation-based metadata system
+
+import type { ViewDef, TableDef, ColumnRef, AnyColumnBuilder, FieldKind, ValueHelpViewDef } from '../schema/definitions.js'
+
+type MetaSource = ViewDef | TableDef
+
+function isViewDef(source: MetaSource): source is ViewDef {
+  return 'source' in source
+}
+
+function resolveTable(source: MetaSource): TableDef {
+  return isViewDef(source) ? source.source : source as TableDef
+}
+
+function resolveSelectedColumns(source: MetaSource): Record<string, unknown> | undefined {
+  return isViewDef(source) ? source.selectedColumns : undefined
+}
+import type { BusinessObjectDef } from '../bo/types.js'
+import type { Queryable } from '../query/types.js'
+import { isTranslatedRef } from '../schema/i18n.js'
+import { toSnakeCase } from '../schema/table.js'
+import { toCamelCase } from '../query/select.js'
+import { getI18nConfig } from '../schema/i18n.js'
+import type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig } from './types.js'
+
+export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig } from './types.js'
+
+// --- Kind inference ---
+
+const numericTypes = new Set(['integer', 'int4', 'serial', 'bigint', 'bigserial', 'numeric', 'real', 'double precision'])
+const dateTypes = new Set(['timestamp', 'timestamptz', 'date'])
+
+function inferKind(pgType: string, annotations: { immutable?: boolean; searchable?: boolean; label?: string; valueHelp?: ValueHelpViewDef }): FieldKind {
+  if (annotations.valueHelp) return 'relation'
+  if (annotations.immutable && annotations.searchable && annotations.label?.includes('slug')) return 'slug'
+  if (numericTypes.has(pgType)) return 'number'
+  if (dateTypes.has(pgType)) return 'date'
+  if (pgType === 'boolean') return 'boolean'
+  return 'text'
+}
+
+function inferFilterMeta(kind: FieldKind, annotations: {
+  filterType?: string
+  filterOptions?: readonly { value: string; label: string }[]
+  valueHelp?: ValueHelpViewDef
+}): FilterMeta {
+  if (annotations.filterType) {
+    const meta: FilterMeta = { type: annotations.filterType as FilterMeta['type'] }
+    if (annotations.filterOptions) return { ...meta, options: annotations.filterOptions }
+    if (annotations.valueHelp) {
+      return {
+        ...meta,
+        endpoint: annotations.valueHelp.name,
+        valueField: annotations.valueHelp.keyField,
+        labelField: annotations.valueHelp.displayField,
+      }
+    }
+    return meta
+  }
+
+  switch (kind) {
+    case 'date': return { type: 'date' }
+    case 'relation': {
+      const vh = annotations.valueHelp
+      if (vh) {
+        return {
+          type: 'relation',
+          endpoint: vh.name,
+          valueField: vh.keyField,
+          labelField: vh.displayField,
+        }
+      }
+      return { type: 'relation' }
+    }
+    default: return { type: 'text' }
+  }
+}
+
+function buildFieldMeta(
+  key: string,
+  annotations: ColumnRef['annotations'],
+  pgType: string,
+  isTranslated: boolean,
+): FieldMeta {
+  const kind: FieldKind = isTranslated
+    ? 'translation'
+    : annotations.kind ?? inferKind(pgType, annotations)
+
+  const filterable = annotations.filterable
+    ? inferFilterMeta(kind, annotations)
+    : false
+
+  return {
+    key,
+    kind,
+    label: annotations.label,
+    hidden: annotations.hidden ?? false,
+    immutable: annotations.immutable ?? false,
+    searchable: annotations.searchable ?? false,
+    filterable,
+    inList: annotations.inList ?? true,
+    inForm: annotations.inForm ?? true,
+    required: annotations.required ?? false,
+    quick: annotations.quick ?? false,
+  }
+}
+
+// --- R1: viewMeta ---
+
+export function viewMeta(source: ViewDef | TableDef): ViewMeta {
+  const fields: FieldMeta[] = []
+  const sourceTable = resolveTable(source)
+  const selectedColumns = resolveSelectedColumns(source)
+
+  if (selectedColumns) {
+    for (const [key, entry] of Object.entries(selectedColumns)) {
+      if (isTranslatedRef(entry)) {
+        fields.push(buildFieldMeta(key, {}, 'text', true))
+      } else {
+        const colRef = entry as ColumnRef
+        // Resolve pgType from the source table (or joined table if specified)
+        const resolvedTable = colRef.sourceTable ?? sourceTable
+        const colBuilder = resolvedTable.columns[colRef.ref] as AnyColumnBuilder | undefined
+        const pgType = colBuilder?._def.pgType ?? 'text'
+        fields.push(buildFieldMeta(key, colRef.annotations, pgType, false))
+      }
+    }
+  } else {
+    for (const [camelName, colBuilder] of Object.entries(sourceTable.columns)) {
+      const pgType = (colBuilder)._def.pgType
+      fields.push(buildFieldMeta(camelName, {}, pgType, false))
+    }
+  }
+
+  return { name: source.name, fields }
+}
+
+// --- R2: boMeta ---
+
+export function boMeta(
+  bo: BusinessObjectDef,
+  config?: { translations?: TranslationConfig; valueHelps?: { name: string; view: ViewDef }[] },
+): BOMeta {
+  const base = viewMeta(bo.root)
+
+  const fields = [...base.fields]
+
+  // Inject translation fields
+  if (config?.translations) {
+    for (const field of config.translations.fields) {
+      // Check if already present
+      if (!fields.find(f => f.key === field)) {
+        fields.push({
+          key: field,
+          kind: 'translation',
+          label: undefined,
+          hidden: false,
+          immutable: false,
+          searchable: true,
+          filterable: { type: 'text' },
+          inList: true,
+          inForm: true,
+          required: false,
+          quick: false,
+        })
+      }
+    }
+  }
+
+  // Inject virtual fields from BO config
+  if (bo.virtualFields) {
+    for (const vf of bo.virtualFields) {
+      if (!fields.find(f => f.key === vf.key)) {
+        fields.push({
+          key: vf.key,
+          kind: vf.kind,
+          label: vf.label,
+          hidden: false,
+          immutable: false,
+          searchable: vf.searchable ?? false,
+          filterable: vf.filterable ? { type: 'text' } : false,
+          inList: vf.inList ?? true,
+          inForm: vf.inForm ?? false,
+          required: false,
+          quick: false,
+        })
+      }
+    }
+  }
+
+  // Build compositions
+  const compositions = Object.entries(bo.compositions).map(([name, comp]) => ({
+    name,
+    fields: comp.table
+      ? Object.keys(comp.table.columns)
+      : comp.view
+        ? Object.keys(comp.view.source.columns)
+        : [],
+  }))
+
+  // Build valueHelps
+  const valueHelps = (config?.valueHelps ?? []).map(vh => ({
+    name: vh.name,
+    fields: viewMeta(vh.view).fields,
+  }))
+
+  return {
+    name: base.name,
+    fields,
+    paramField: bo.paramField,
+    readOnly: bo.isReadOnly,
+    compositions,
+    valueHelps,
+    routePrefix: bo.routePrefix,
+    orderBy: bo.orderBy,
+    orderDir: bo.orderDir,
+    cacheTags: bo.cacheTags,
+  }
+}
+
+// --- R3: searchWhere ---
+
+export interface SearchWhereResult {
+  readonly text: string
+  readonly values: readonly unknown[]
+}
+
+export function searchWhere(viewDef: ViewDef, query: string): SearchWhereResult {
+  const searchableKeys: string[] = []
+
+  if (viewDef.selectedColumns) {
+    for (const [key, entry] of Object.entries(viewDef.selectedColumns)) {
+      if (isTranslatedRef(entry)) continue // translation search handled separately
+      const colRef = entry as ColumnRef
+      if (colRef.annotations.searchable) {
+        searchableKeys.push(key)
+      }
+    }
+  }
+
+  if (searchableKeys.length === 0) {
+    return { text: '', values: [] }
+  }
+
+  const pattern = `%${query}%`
+  const clauses = searchableKeys.map((key, i) => `${toSnakeCase(key)} ILIKE $${i + 1}`)
+  const values = searchableKeys.map(() => pattern)
+
+  return {
+    text: `(${clauses.join(' OR ')})`,
+    values,
+  }
+}
+
+// --- R3: filterWhere ---
+
+export function filterWhere(viewDef: ViewDef, params: Record<string, unknown>): Record<string, unknown> {
+  const filterableKeys = new Set<string>()
+
+  if (viewDef.selectedColumns) {
+    for (const [key, entry] of Object.entries(viewDef.selectedColumns)) {
+      if (isTranslatedRef(entry)) continue
+      const colRef = entry as ColumnRef
+      if (colRef.annotations.filterable) {
+        const effectiveKey = colRef.annotations.filterKey ?? key
+        filterableKeys.add(effectiveKey)
+      }
+    }
+  }
+
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (filterableKeys.has(key)) {
+      result[key] = value
+    }
+  }
+
+  return result
+}
+
+// --- R4: enrichItems ---
+
+export async function enrichItems<T extends Record<string, unknown>>(
+  db: Queryable,
+  items: readonly T[],
+  config: EnrichConfig,
+): Promise<(T & { translations?: Record<string, unknown>[] })[]> {
+  if (items.length === 0) return []
+
+  const i18nConfig = getI18nConfig()
+  const fallback = config.fallbackLocale ?? i18nConfig.fallbackLocale
+
+  // Extract parent IDs
+  const ids = items.map(item => item[config.idField])
+
+  // Single batch query
+  const snakeParentKey = toSnakeCase(config.parentKey)
+  const snakeFields = config.fields.map(toSnakeCase)
+  const selectFields = [snakeParentKey, 'locale', ...snakeFields].join(', ')
+
+  type TranslationRow = Record<string, unknown>
+  const rows = await db.query<TranslationRow>(
+    `SELECT ${selectFields} FROM ${config.translationTable} WHERE ${snakeParentKey} = ANY($1) ORDER BY ${snakeParentKey}, locale`,
+    [ids],
+  )
+
+  // Group translations by parent ID
+  const translationMap = new Map<unknown, TranslationRow[]>()
+  for (const row of rows) {
+    const parentId = row[snakeParentKey]
+    const existing = translationMap.get(parentId)
+    if (existing) {
+      existing.push(row)
+    } else {
+      translationMap.set(parentId, [row])
+    }
+  }
+
+  // Enrich each item
+  return items.map(item => {
+    const id = item[config.idField]
+    const allTranslations = translationMap.get(id) ?? []
+
+    // Convert to camelCase
+    const translations = allTranslations.map(row => {
+      const result: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(row)) {
+        result[toCamelCase(k)] = v
+      }
+      return result
+    })
+
+    // Resolve fields for requested locale with fallback
+    const localeRow = translations.find(t => t.locale === config.locale)
+    const fallbackRow = translations.find(t => t.locale === fallback)
+
+    const enriched: Record<string, unknown> = { ...item, translations }
+    for (const field of config.fields) {
+      enriched[field] = localeRow?.[field] ?? fallbackRow?.[field] ?? null
+    }
+
+    return enriched as T & { translations?: Record<string, unknown>[] }
+  })
+}

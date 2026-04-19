@@ -1,0 +1,93 @@
+{
+  "name": "pgbo",
+  "version": "0.1.0",
+  "description": "Type-safe PostgreSQL Business Objects — tables, views, domains, auto-migration, native i18n",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "pgbo": "./dist/cli/index.js"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "default": "./dist/schema/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "default": "./dist/query/index.js"
+    },
+    "./validation": {
+      "types": "./dist/validation/index.d.ts",
+      "default": "./dist/validation/index.js"
+    },
+    "./seed": {
+      "types": "./dist/seed/index.d.ts",
+      "default": "./dist/seed/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
+    "./bo": {
+      "types": "./dist/bo/index.d.ts",
+      "default": "./dist/bo/index.js"
+    },
+    "./migration": {
+      "types": "./dist/migration/index.d.ts",
+      "default": "./dist/migration/index.js"
+    },
+    "./metadata": {
+      "types": "./dist/metadata/index.d.ts",
+      "default": "./dist/metadata/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "postgresql",
+    "typescript",
+    "orm",
+    "business-objects",
+    "views",
+    "domains",
+    "migration",
+    "type-safe",
+    "i18n"
+  ],
+  "author": "Tim Riep <tim@riep-tech.de>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/pg": "^8.15.4",
+    "eslint": "^9.27.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^3.2.1",
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  }
+}
