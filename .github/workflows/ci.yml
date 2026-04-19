@@ -35,7 +35,7 @@ jobs:
       PGBO_TEST_URL: postgresql://postgres@localhost:5432/postgres
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:
