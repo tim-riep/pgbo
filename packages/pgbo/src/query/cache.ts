@@ -3,15 +3,19 @@
 // The CacheProvider interface is the extension point. pgbo ships one default
 // implementation — an in-process LRU with per-entry TTL. Redis or other
 // distributed backends live in app code: write ~30 LOC against this interface.
+//
+// The cache stores heterogeneous values (like any multi-key cache), so `get`
+// returns `unknown` — callers cast at the use site. `SelectBuilder.cached()`
+// casts to `Row[]` internally so the typed query API is preserved.
 
 export interface CacheProvider {
   /** Returns the cached value, or undefined on miss / expired. */
-  get<T>(key: string): Promise<T | undefined>
+  get(key: string): Promise<unknown>
   /**
    * Stores `value` under `key` with the given tags.
    * `ttlSeconds` overrides the provider's default TTL. Pass 0 or undefined for the provider default.
    */
-  set<T>(key: string, value: T, tags: readonly string[], ttlSeconds?: number): Promise<void>
+  set(key: string, value: unknown, tags: readonly string[], ttlSeconds?: number): Promise<void>
   /** Evicts every entry whose tag set intersects `tags`. */
   invalidateByTags(tags: readonly string[]): Promise<void>
   /** Evicts a single entry. */
@@ -54,21 +58,23 @@ export function memoryCache(options: MemoryCacheOptions = {}): CacheProvider {
     }
   }
 
+  // Interface returns Promises for async backends. The in-memory path is
+  // synchronous, so methods return resolved Promises rather than being `async`.
   return {
-    async get<T>(key: string): Promise<T | undefined> {
+    get(key: string): Promise<unknown> {
       const entry = entries.get(key)
-      if (!entry) return undefined
+      if (!entry) return Promise.resolve(undefined)
       if (isExpired(entry)) {
         entries.delete(key)
-        return undefined
+        return Promise.resolve(undefined)
       }
       // Refresh insertion order for LRU-ish behavior
       entries.delete(key)
       entries.set(key, entry)
-      return entry.value as T
+      return Promise.resolve(entry.value)
     },
 
-    async set<T>(key: string, value: T, tags: readonly string[], ttlSeconds?: number): Promise<void> {
+    set(key: string, value: unknown, tags: readonly string[], ttlSeconds?: number): Promise<void> {
       if (entries.has(key)) entries.delete(key)
       else evictOldestIfFull()
       const ttl = ttlSeconds ?? defaultTtl
@@ -77,10 +83,11 @@ export function memoryCache(options: MemoryCacheOptions = {}): CacheProvider {
         expiresAt: ttl > 0 ? Date.now() + ttl * 1000 : undefined,
         tags: new Set(tags),
       })
+      return Promise.resolve()
     },
 
-    async invalidateByTags(tags: readonly string[]): Promise<void> {
-      if (tags.length === 0) return
+    invalidateByTags(tags: readonly string[]): Promise<void> {
+      if (tags.length === 0) return Promise.resolve()
       const tagSet = new Set(tags)
       for (const [key, entry] of entries) {
         for (const tag of entry.tags) {
@@ -90,14 +97,17 @@ export function memoryCache(options: MemoryCacheOptions = {}): CacheProvider {
           }
         }
       }
+      return Promise.resolve()
     },
 
-    async invalidateByKey(key: string): Promise<void> {
+    invalidateByKey(key: string): Promise<void> {
       entries.delete(key)
+      return Promise.resolve()
     },
 
-    async clear(): Promise<void> {
+    clear(): Promise<void> {
       entries.clear()
+      return Promise.resolve()
     },
   }
 }

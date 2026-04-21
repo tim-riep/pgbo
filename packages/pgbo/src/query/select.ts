@@ -190,8 +190,8 @@ export class SelectBuilder<Row> {
     if (this.cacheOpts && this._cache) {
       const { text, values } = this.toQuery()
       const key = this.cacheOpts.key ?? deriveCacheKey(this.tableName, text, values)
-      const hit = await this._cache.get<Row[]>(key)
-      if (hit !== undefined) return hit
+      const hit = await this._cache.get(key)
+      if (hit !== undefined) return hit as Row[]
       const rows = await this.queryable.query(text, values)
       const mapped = rows.map(row => rowToCamelCase(row) as Row)
       await this._cache.set(key, mapped, this.cacheOpts.tags, this.cacheOpts.ttl)

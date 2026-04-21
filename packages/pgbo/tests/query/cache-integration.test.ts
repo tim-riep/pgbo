@@ -91,7 +91,7 @@ describe('Cache integration (issue #8)', () => {
       const db = createDatabase({ connectionString: testDb.connectionString, cache })
 
       await db.from(warehouseView).where({ id: 1 }).cached({ tags: ['wh'], key: 'custom-key' }).execute()
-      const direct = await cache.get<unknown[]>('custom-key')
+      const direct = (await cache.get('custom-key')) as unknown[] | undefined
       expect(direct).toBeDefined()
       expect(direct).toHaveLength(1)
 
