@@ -50,6 +50,10 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      # Trusted Publishing requires npm 11.5.1+. The bundled npm on Node 22
+      # works but pinning the latest avoids surprises.
+      - run: npm install -g npm@latest
+
       - run: npm ci
       - run: npm run build
       - run: npm run lint
@@ -62,6 +66,8 @@ jobs:
           npm publish --workspace @pgbo/core --provenance --access public --dry-run
           npm publish --workspace @pgbo/fastify --provenance --access public --dry-run
 
+      # No NPM_TOKEN — authenticates via OIDC against npm's Trusted Publisher
+      # config for @pgbo/core and @pgbo/fastify. Requires id-token:write (above).
       - name: Publish to npm + create GitHub release
         if: inputs.dry-run != true
         uses: changesets/action@v1
@@ -70,5 +76,4 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
