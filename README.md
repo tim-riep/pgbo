@@ -2,6 +2,8 @@
 
 Type-safe PostgreSQL Business Objects.
 
+📚 **Documentation: <https://tim-riep.github.io/pgbo/>**
+
 A TypeScript framework for PostgreSQL that enforces a clean three-layer architecture:
 
 - **Tables** — pure storage with foreign keys. Never accessed directly by application code.
@@ -34,7 +36,15 @@ npm install @pgbo/fastify   # if using Fastify
 
 ## Documentation
 
-See [`docs/`](docs/index.md) — including [`architecture.md`](docs/architecture.md), [`schema.md`](docs/schema.md), [`query.md`](docs/query.md), [`bo.md`](docs/bo.md), [`migration.md`](docs/migration.md), and more.
+Browse the full docs at **<https://tim-riep.github.io/pgbo/>**:
+
+- [Architecture](https://tim-riep.github.io/pgbo/architecture) — the three-layer model and design principles
+- [Schema Definition](https://tim-riep.github.io/pgbo/schema) — tables, columns, views, domains, enums
+- [Query Builder](https://tim-riep.github.io/pgbo/query) — SELECT/INSERT/UPDATE/DELETE, caching, transactions
+- [Business Objects](https://tim-riep.github.io/pgbo/bo) — `defineBO`, actions, compositions, associations
+- [Migration Engine](https://tim-riep.github.io/pgbo/migration) — introspect, diff, migrate
+
+Or read them directly in the repo under [`docs/`](docs/index.md).
 
 ## License
 

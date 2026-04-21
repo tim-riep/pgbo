@@ -76,7 +76,7 @@ export const documentBO = defineBO(documentTable, {
 
 Standard `create` / `update` / `delete` keep their existing REST routes and are NOT also exposed under `/{actionName}` — no duplication.
 
-See the [full documentation](https://github.com/tim-riep/pgbo) for details.
+Full documentation: **<https://tim-riep.github.io/pgbo/>**. Source and issues: <https://github.com/tim-riep/pgbo>.
 
 ## License
 

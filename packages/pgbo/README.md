@@ -39,13 +39,15 @@ const rows = await db.from(warehouseView).execute()
 
 ## Documentation
 
-Full documentation, architecture, and examples: <https://github.com/tim-riep/pgbo>
+Full documentation: **<https://tim-riep.github.io/pgbo/>**
 
-- [Architecture](https://github.com/tim-riep/pgbo/blob/main/docs/architecture.md)
-- [Schema Definition](https://github.com/tim-riep/pgbo/blob/main/docs/schema.md)
-- [Query Builder](https://github.com/tim-riep/pgbo/blob/main/docs/query.md)
-- [Business Objects](https://github.com/tim-riep/pgbo/blob/main/docs/bo.md)
-- [Migrations](https://github.com/tim-riep/pgbo/blob/main/docs/migration.md)
+- [Architecture](https://tim-riep.github.io/pgbo/architecture)
+- [Schema Definition](https://tim-riep.github.io/pgbo/schema)
+- [Query Builder](https://tim-riep.github.io/pgbo/query)
+- [Business Objects](https://tim-riep.github.io/pgbo/bo)
+- [Migrations](https://tim-riep.github.io/pgbo/migration)
+
+Source and issues: <https://github.com/tim-riep/pgbo>
 
 ## Packages
 
