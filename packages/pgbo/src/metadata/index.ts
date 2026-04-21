@@ -132,7 +132,14 @@ export function viewMeta(source: ViewDef | TableDef): ViewMeta {
     }
   }
 
-  return { name: source.name, fields }
+  const viewAssocs = isViewDef(source) ? source.viewAssociations ?? {} : {}
+  const associations = Object.entries(viewAssocs).map(([name, assoc]) => ({
+    name,
+    foreignKey: assoc.foreignKey,
+    target: assoc.target?.name,
+  }))
+
+  return { name: source.name, fields, associations }
 }
 
 // --- R2: boMeta ---
@@ -204,9 +211,17 @@ export function boMeta(
     fields: viewMeta(vh.view).fields,
   }))
 
+  // Merge view associations with BO-level associations (BO wins on key collision)
+  const associations = Object.entries(bo.associations).map(([name, assoc]) => ({
+    name,
+    foreignKey: assoc.foreignKey,
+    target: assoc.target?.name,
+  }))
+
   return {
     name: base.name,
     fields,
+    associations,
     paramField: bo.paramField,
     readOnly: bo.isReadOnly,
     compositions,

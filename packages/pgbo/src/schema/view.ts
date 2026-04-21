@@ -1,6 +1,6 @@
 // View builder — Phase 3 (Step 11) + i18n + JOIN support + typed columns
 
-import type { TableDef, ViewDef, ValueHelpViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction } from './definitions.js'
+import type { TableDef, ViewDef, ValueHelpViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction, AssociationDef } from './definitions.js'
 import type { TranslatedRef } from './i18n.js'
 import { isTranslatedRef } from './i18n.js'
 import { isSubqueryCountRef } from './subquery.js'
@@ -21,6 +21,7 @@ function createViewDef(
   whereClause?: string,
   restrictions?: readonly Restriction[],
   isNoAuth?: boolean,
+  viewAssociations?: Readonly<Record<string, AssociationDef>>,
 ): ViewDef<any, any> {
   const self: ViewDef = {
     name,
@@ -30,35 +31,40 @@ function createViewDef(
     whereClause,
     restrictions,
     isNoAuth,
+    viewAssociations,
 
     from(table: TableDef) {
-      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth)
+      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
     },
 
     join(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
     },
 
     leftJoin(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'LEFT JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
     },
 
     columns(cols: Record<string, ColumnEntry>) {
-      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth)
+      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth, viewAssociations)
     },
 
     where(condition: string) {
-      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth)
+      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth, viewAssociations)
     },
 
     restrict(r: Restriction) {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth, viewAssociations)
     },
 
     noAuth() {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true, viewAssociations)
+    },
+
+    associations(assocs: Record<string, AssociationDef>) {
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, { ...viewAssociations, ...assocs })
     },
 
     as<T extends Record<string, unknown>>() {

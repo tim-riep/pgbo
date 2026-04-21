@@ -24,9 +24,16 @@ export interface FieldMeta {
   readonly quick: boolean
 }
 
+export interface AssociationMeta {
+  readonly name: string
+  readonly foreignKey: string
+  readonly target?: string
+}
+
 export interface ViewMeta {
   readonly name: string
   readonly fields: readonly FieldMeta[]
+  readonly associations: readonly AssociationMeta[]
 }
 
 export interface CompositionMeta {
