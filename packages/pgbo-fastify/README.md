@@ -41,7 +41,40 @@ await app.listen({ port: 3000 })
 - **GET** `/bo/{name}` — metadata with `labelKey` fallback
 - **GET** `/bo/{name}/valueHelp/{vhName}` — dropdown data sources
 - **POST / PUT / DELETE** — CRUD with action-based gating, afterWrite hooks, and global-record write protection
+- **POST** `/bo/{name}/{actionName}` — auto-registered for every custom BO action
+- **File / binary responses** — return a `FileResponse` from an action handler to send PDF/XLSX/CSV/etc. with proper `Content-Type` and `Content-Disposition`
 - **`registerViewRoute`** — read-only paginated view endpoint
+
+## Custom actions and file responses
+
+Every non-standard action on a BO is auto-exposed as `POST /bo/{boName}/{actionName}`:
+
+```typescript
+import type { FileResponse } from '@pgbo/fastify'
+
+export const documentBO = defineBO(documentTable, {
+  actions: {
+    create: {}, update: {}, delete: {},
+    reverse: {
+      handler: async (ctx, data) => reverseDocument(data.id),
+    },
+    pdf: {
+      handler: async (ctx, data): Promise<FileResponse> => ({
+        data: await renderPdf(data.id),
+        contentType: 'application/pdf',
+        filename: `${data.documentNumber}.pdf`,
+        inline: true,
+      }),
+    },
+  },
+})
+```
+
+- Custom actions that return a value → JSON body, status 200
+- Custom actions that return `undefined` / `null` → status 204 (no body)
+- Custom actions that return `FileResponse` → binary body with `Content-Type` + `Content-Disposition` headers
+
+Standard `create` / `update` / `delete` keep their existing REST routes and are NOT also exposed under `/{actionName}` — no duplication.
 
 See the [full documentation](https://github.com/tim-riep/pgbo) for details.
 

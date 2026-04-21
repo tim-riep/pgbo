@@ -6,13 +6,44 @@ import type { ViewDef } from '@pgbo/core/schema'
 import { parseListParams } from '@pgbo/core/query'
 import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
 import { enrichCompositions } from '@pgbo/core/bo'
-import type { BoRouteConfig, ViewRouteConfig } from './types.js'
+import type { BoRouteConfig, ViewRouteConfig, FileResponse } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
 
 interface TypedBoMethods {
   create: (db: Database, ctx: unknown, data: unknown) => Promise<unknown>
   update: (db: Database, ctx: unknown, data: unknown) => Promise<unknown>
   delete: (db: Database, ctx: unknown, data: unknown) => Promise<unknown>
+  execute: (db: Database, actionName: string, ctx: unknown, data: unknown) => Promise<unknown>
+}
+
+const STANDARD_ACTIONS = new Set(['create', 'update', 'delete'])
+
+function isFileResponse(value: unknown): value is FileResponse {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  const data = v.data
+  const isBinary = (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) || data instanceof Uint8Array
+  return isBinary && typeof v.contentType === 'string'
+}
+
+async function sendActionResult(reply: FastifyReply, result: unknown): Promise<void> {
+  if (result === undefined || result === null) {
+    await reply.code(204).send()
+    return
+  }
+  if (isFileResponse(result)) {
+    reply.header('content-type', result.contentType)
+    reply.header('content-length', String(result.data.byteLength))
+    if (result.filename) {
+      const disposition = result.inline ? 'inline' : 'attachment'
+      // Escape quotes in filename per RFC 6266
+      const safe = result.filename.replace(/"/g, '\\"')
+      reply.header('content-disposition', `${disposition}; filename="${safe}"`)
+    }
+    await reply.send(result.data)
+    return
+  }
+  await reply.send(result)
 }
 
 function resolveView(config: BoRouteConfig): ViewDef {
@@ -229,6 +260,19 @@ export function registerBoRoutes(app: FastifyInstance, db: Database, config: BoR
       const result = await boMethods.delete(db, ctx, { [paramField]: paramValue })
       if (config.afterWrite) await config.afterWrite(ctx, 'delete')
       return result
+    })
+  }
+
+  // Custom actions — any action that isn't create/update/delete gets exposed as
+  // POST /bo/{name}/{actionName}. Handler return values are JSON-serialized, or
+  // sent as binary when the handler returns a FileResponse (see types.ts).
+  for (const actionName of Object.keys(bo.actions)) {
+    if (STANDARD_ACTIONS.has(actionName)) continue
+    app.post(`/bo/${bo.name}/${actionName}`, async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await config.extractContext(req)
+      const data = (req.body as Record<string, unknown> | undefined) ?? {}
+      const result = await boMethods.execute(db, actionName, ctx, data)
+      await sendActionResult(reply, result)
     })
   }
 }
