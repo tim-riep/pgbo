@@ -32,6 +32,20 @@ export interface BoRouteConfig {
   readonly valueHelps?: Readonly<Record<string, ViewDef | ValueHelpViewDef>>
 }
 
+/**
+ * Return this shape from a custom BO action handler to send a binary response
+ * (PDF, XLSX, CSV, etc.) instead of JSON.
+ */
+export interface FileResponse {
+  readonly data: Buffer | Uint8Array
+  /** MIME type, e.g. 'application/pdf' */
+  readonly contentType: string
+  /** Optional filename — triggers Content-Disposition header */
+  readonly filename?: string
+  /** `inline` (default false) serves the file for in-browser viewing; `attachment` forces download */
+  readonly inline?: boolean
+}
+
 export interface ViewRouteConfig {
   /** The view to expose */
   readonly view: ViewDef
