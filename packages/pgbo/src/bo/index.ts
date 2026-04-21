@@ -40,13 +40,17 @@ export function defineBO<
     }
   }
 
+  // Inherit associations from the view. BO-level associations override by key.
+  const viewAssocs = 'viewAssociations' in root ? root.viewAssociations ?? {} : {}
+  const associations = { ...viewAssocs, ...(config.associations ?? {}) }
+
   const bo: BusinessObjectDef = {
     name: config.name ?? snakeToCamel(root.name),
     root,
     paramField: config.paramField ?? 'id',
     actions: config.actions ?? {},
     compositions,
-    associations: config.associations ?? {},
+    associations,
     valueHelps: config.valueHelps ?? {},
     isReadOnly: !config.actions || Object.keys(config.actions).length === 0,
     routePrefix: config.routePrefix,

@@ -278,6 +278,38 @@ const warehouseValueHelp = valueHelpView('warehouse_vh')
   .display('name')
 ```
 
+### Associations
+
+Declare read-time navigation relations on the view. BOs built on this view inherit them automatically — no need to redeclare in `defineBO()`.
+
+```typescript
+const pageView = view('page_view')
+  .from(pageTable)
+  .associations({
+    area: { foreignKey: 'areaId', target: areaView },
+    author: { foreignKey: 'authorId', target: userView },
+  })
+  .columns({ /* ... */ })
+```
+
+The `target` is optional but recommended — `viewMeta().associations` surfaces it so metadata endpoints and enrichment utilities can resolve relations without BO context.
+
+BO-level `associations` still work and take precedence on key collision:
+
+```typescript
+const pageBO = defineBO(pageView, {
+  paramField: 'id',
+  // Inherits { area, author } from the view.
+  // Can override or add more:
+  associations: {
+    area: { foreignKey: 'customAreaId' },  // overrides view's
+    extra: { foreignKey: 'extraId' },       // adds a new one
+  },
+})
+```
+
+Compositions (write-time cascade semantics) stay BO-only — they aren't inherited from the view.
+
 ### Auth Restrictions
 
 Views carry declarative auth annotations. pgbo enforces them via a pluggable handler before query execution:

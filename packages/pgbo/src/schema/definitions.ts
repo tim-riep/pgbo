@@ -244,6 +244,17 @@ type Simplify<T> = { [K in keyof T]: T[K] } & {}
 type InferColumnsMap<M extends Record<string, any>, SourceCols extends Record<string, AnyColumnBuilder> = Record<string, AnyColumnBuilder>> =
   Simplify<{ [K in keyof M]: InferColEntry<M[K], SourceCols> }>
 
+// --- Association ---
+
+/**
+ * Read-time navigation relation from this view/BO to another entity.
+ * `target` is optional and identifies the referenced view/table for metadata + enrichment.
+ */
+export interface AssociationDef {
+  readonly foreignKey: string
+  readonly target?: ViewDef | TableDef
+}
+
 // --- View ---
 
 export interface ViewDef<
@@ -257,6 +268,7 @@ export interface ViewDef<
   readonly whereClause?: string
   readonly restrictions?: readonly Restriction[]
   readonly isNoAuth?: boolean
+  readonly viewAssociations?: Readonly<Record<string, AssociationDef>>
   /** Phantom type carrying the inferred row shape */
   readonly _rowType?: TRow
   from<C extends Record<string, AnyColumnBuilder>>(table: TableDef<C>): ViewDef<TRow, C>
@@ -268,6 +280,8 @@ export interface ViewDef<
   restrict(r: Restriction): ViewDef<TRow, SC>
   /** Mark this view as requiring no auth (e.g. value helps) */
   noAuth(): ViewDef<TRow, SC>
+  /** Declare read-time navigation relations. BOs built on this view inherit them. */
+  associations(assocs: Record<string, AssociationDef>): ViewDef<TRow, SC>
   /** Brand the view with an explicit row type (escape hatch) */
   as<T extends Record<string, unknown>>(): ViewDef<T>
   toSQL(): string

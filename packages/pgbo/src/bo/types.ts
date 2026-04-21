@@ -1,6 +1,6 @@
 // Business Object type definitions — Phase 7 (Step 17)
 
-import type { ViewDef, ValueHelpViewDef, TableDef, AnyColumnBuilder, FieldKind } from '../schema/definitions.js'
+import type { ViewDef, ValueHelpViewDef, TableDef, AnyColumnBuilder, FieldKind, AssociationDef } from '../schema/definitions.js'
 import type { InferRow, InferInsert, InferUpdate } from '../schema/infer.js'
 
 export type ActionContext = Record<string, unknown>;
@@ -35,7 +35,7 @@ export interface BusinessObjectDef {
   readonly paramField: string
   readonly actions: Readonly<Record<string, ActionDef>>
   readonly compositions: Readonly<Record<string, CompositionDef>>
-  readonly associations: Readonly<Record<string, { foreignKey: string }>>
+  readonly associations: Readonly<Record<string, AssociationDef>>
   readonly valueHelps: Readonly<Record<string, ValueHelpViewDef>>
   readonly isReadOnly: boolean
   readonly routePrefix?: string
@@ -51,7 +51,7 @@ export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<st
   paramField?: string & keyof C
   actions?: Record<string, ActionDef>
   compositions?: Record<string, CompositionDef | ViewDef | TableDef>
-  associations?: Record<string, { foreignKey: string }>
+  associations?: Record<string, AssociationDef>
   valueHelps?: Record<string, ValueHelpViewDef>
   routePrefix?: string
   orderBy?: string
