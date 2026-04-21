@@ -21,6 +21,58 @@ const db = createDatabase({
 await db.close()
 ```
 
+## Caching
+
+pgbo ships a pluggable cache layer. Configure a provider on the `Database` and:
+
+- Queries can opt into read-through caching via `.cached({ tags, ttl? })`
+- BO writes (`create` / `update` / `delete`) auto-invalidate by `bo.cacheTags`
+
+```typescript
+import { createDatabase, memoryCache } from '@pgbo/core'
+
+const db = createDatabase({
+  connectionString: 'postgresql://localhost/mydb',
+  cache: memoryCache({ maxEntries: 2000, defaultTtl: 300 }),  // 5-min default TTL
+})
+
+// Read-through — first call hits DB, second returns cached
+const rows = await db.from(tileView)
+  .where({ slug, action })
+  .cached({ tags: ['tiles', `tenant:${tenantId}`], ttl: 300 })
+  .execute()
+
+// Auto-invalidation on BO writes
+const tileBO = defineBO(tileTable, {
+  cacheTags: ['tiles'],
+  actions: { create: {}, update: {}, delete: {} },
+})
+
+await tileBO.update(db, ctx, { id: 1, slug: 'changed' })
+// → pgbo calls cache.invalidateByTags(['tiles']) automatically
+```
+
+The cache key is derived from the view name, full SQL, and bound parameter values. Pass `key: 'custom'` to override it.
+
+### Custom providers
+
+Implement the `CacheProvider` interface for Redis / Memcached / anything else:
+
+```typescript
+import type { CacheProvider } from '@pgbo/core'
+
+export function redisCache(client: RedisClient): CacheProvider {
+  return {
+    async get(key) { /* ... */ },
+    async set(key, value, tags, ttl) { /* ... */ },
+    async invalidateByTags(tags) { /* ... */ },
+    async invalidateByKey(key) { /* ... */ },
+  }
+}
+```
+
+Without a configured cache, `.cached()` becomes a silent no-op — always hits the database. Useful for development vs. production parity without code changes.
+
 ## SELECT
 
 ```typescript

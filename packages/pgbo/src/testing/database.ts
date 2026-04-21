@@ -23,6 +23,8 @@ export interface TestDatabase {
   db: Database
   /** The generated database name */
   name: string
+  /** Full connection string pointing at the isolated test database */
+  connectionString: string
   /** Drop the test database and close all connections */
   dispose: () => Promise<void>
   /** Reset: truncate all tables and re-apply seed data */
@@ -103,6 +105,7 @@ export async function createTestDatabase(config: TestDatabaseConfig): Promise<Te
   return {
     db,
     name: dbName,
+    connectionString: testConnectionString,
 
     async dispose(): Promise<void> {
       await db.close()
