@@ -44,15 +44,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Node 24 ships with npm 11.5+ — required for Trusted Publishing (OIDC).
+      # Node 22's bundled npm 10.9 is too old, and upgrading npm in-place in CI
+      # hits a known self-breakage bug (MODULE_NOT_FOUND: promise-retry).
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: https://registry.npmjs.org
           cache: npm
-
-      # Trusted Publishing requires npm 11.5.1+. The bundled npm on Node 22
-      # works but pinning the latest avoids surprises.
-      - run: npm install -g npm@latest
 
       - run: npm ci
       - run: npm run build
