@@ -9,6 +9,7 @@ import { InsertBuilder } from './insert.js'
 import { UpdateBuilder } from './update.js'
 import { DeleteBuilder } from './delete.js'
 import { runTransaction, type TransactionClient } from './transaction.js'
+import type { CacheProvider } from './cache.js'
 
 export type AuthHandler = (userId: string, restriction: Restriction) => Promise<boolean> | boolean
 
@@ -37,6 +38,8 @@ export interface DatabaseConfig {
     idleTimeoutMs?: number
     connectionTimeoutMs?: number
   }
+  /** Optional cache provider. Enables `.cached()` on queries and auto-invalidation on BO writes. */
+  cache?: CacheProvider
 }
 
 /** Internal table-level operations — used by framework internals (BO actions, seeds, testing) */
@@ -98,6 +101,9 @@ export interface Database extends Queryable {
   /** Register a pluggable auth handler for view-level restrictions */
   setAuthHandler(handler: AuthHandler): void
 
+  /** Optional cache provider registered via DatabaseConfig. undefined when no cache was configured. */
+  readonly cache?: CacheProvider
+
   /** Close the connection pool */
   close(): Promise<void>
 
@@ -155,13 +161,21 @@ export function createDatabase(config: DatabaseConfig): Database {
     return builder
   }
 
+  const cache = config.cache
+
+  function wireCache<B extends { _cache?: CacheProvider }>(builder: B): B {
+    if (cache) builder._cache = cache
+    return builder
+  }
+
   const db: Database = {
     pool,
+    cache,
 
     query: queryFn,
 
     from<V extends ViewDef>(viewDef: V) {
-      return wireAuth(new SelectBuilder<InferViewRow<V>>(db, viewDef.name), viewDef, 'READ')
+      return wireCache(wireAuth(new SelectBuilder<InferViewRow<V>>(db, viewDef.name), viewDef, 'READ'))
     },
 
     into<V extends ViewDef>(viewDef: V) {

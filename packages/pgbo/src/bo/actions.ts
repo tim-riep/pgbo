@@ -102,5 +102,11 @@ export async function executeAction(
   // After hook
   if (action.after) await action.after(ctx, result as any)
 
+  // Auto-invalidate cache by BO tags. Runs after successful writes only; custom
+  // actions that invoke their own handler already returned above.
+  if (bo.cacheTags && bo.cacheTags.length > 0 && db.cache) {
+    await db.cache.invalidateByTags(bo.cacheTags)
+  }
+
   return result
 }
