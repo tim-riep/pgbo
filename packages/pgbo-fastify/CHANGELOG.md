@@ -1,5 +1,12 @@
 # @pgbo/fastify
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [7f96a57]
+  - @pgbo/core@0.5.0
+
 ## 2.0.0
 
 ### Major Changes
