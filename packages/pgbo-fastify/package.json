@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/fastify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fastify route factory for pgbo Business Objects — CRUD, metadata, value helps, pagination",
   "type": "module",
   "main": "dist/index.js",
