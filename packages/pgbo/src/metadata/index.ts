@@ -195,15 +195,30 @@ export function boMeta(
     }
   }
 
-  // Build compositions
-  const compositions = Object.entries(bo.compositions).map(([name, comp]) => ({
-    name,
-    fields: comp.table
-      ? Object.keys(comp.table.columns)
-      : comp.view
-        ? Object.keys(comp.view.source.columns)
-        : [],
-  }))
+  // Build compositions — supports both plain and link-through variants
+  const compositions = Object.entries(bo.compositions).map(([name, comp]) => {
+    if ('linkTable' in comp) {
+      // Link-through: the exposed shape is the target's columns (narrowed if set)
+      if (comp.columns && comp.columns.length > 0) return { name, fields: [...comp.columns] }
+      const target = comp.target
+      if ('source' in target) return { name, fields: Object.keys(target.source.columns) }
+      if ('columns' in target) return { name, fields: Object.keys(target.columns) }
+      // BO target — fall back to root's columns
+      const root = (target as { root: ViewDef | TableDef }).root
+      return {
+        name,
+        fields: 'source' in root ? Object.keys(root.source.columns) : Object.keys(root.columns),
+      }
+    }
+    return {
+      name,
+      fields: comp.table
+        ? Object.keys(comp.table.columns)
+        : comp.view
+          ? Object.keys(comp.view.source.columns)
+          : [],
+    }
+  })
 
   // Build valueHelps
   const valueHelps = (config?.valueHelps ?? []).map(vh => ({

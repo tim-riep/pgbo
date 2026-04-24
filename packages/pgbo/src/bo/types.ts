@@ -1,6 +1,18 @@
 // Business Object type definitions — Phase 7 (Step 17)
 
 import type { ViewDef, ValueHelpViewDef, TableDef, AnyColumnBuilder, FieldKind, AssociationDef } from '../schema/definitions.js'
+
+/**
+ * Structural shape of a BO that can act as a link-composition target.
+ * Defined here (rather than importing BusinessObjectDef recursively) so the
+ * type is self-contained. The real BusinessObjectDef satisfies this shape.
+ */
+export interface BoTarget {
+  readonly name: string
+  readonly root: ViewDef | TableDef
+  readonly paramField: string
+  readonly compositions: Readonly<Record<string, unknown>>
+}
 import type { InferRow, InferInsert, InferUpdate } from '../schema/infer.js'
 
 export type ActionContext = Record<string, unknown>;
@@ -35,6 +47,44 @@ export interface CompositionDef {
   readonly merge?: readonly string[]
 }
 
+/**
+ * Many-to-many composition variant (issue #25).
+ *
+ * Parent rows reach target rows through a link table:
+ * `parent → linkTable.linkParentKey = parent.paramField`
+ * `→ target.paramField = linkTable.linkTargetKey`
+ *
+ * On read, `enrichCompositions` loads link rows, looks up targets, runs the
+ * target BO's compositions (so translations resolve), and attaches them to
+ * each parent under the composition name as an array.
+ *
+ * Write-through support (replace/add/remove semantics) is deferred to a
+ * follow-up PR — for now link compositions are **read-only**.
+ */
+export interface LinkCompositionDef {
+  /** Tag used at runtime to discriminate from the plain `CompositionDef` shape. */
+  readonly linkTable: TableDef
+  /** Column on the link table that matches the parent's paramField. */
+  readonly linkParentKey: string
+  /** Column on the link table that matches the target's paramField / primary key. */
+  readonly linkTargetKey: string
+  /** The target entity to resolve — view, table, or BO (BO → its compositions run). */
+  readonly target: ViewDef | TableDef | BoTarget
+  /** Narrow the target columns exposed on each parent element. */
+  readonly columns?: readonly string[]
+  /** Additional WHERE on the target query (context placeholders supported). */
+  readonly where?: Record<string, unknown>
+  /** Additional WHERE on the link table query. */
+  readonly linkWhere?: Record<string, unknown>
+}
+
+/** Union of composition shapes used inside a BO's `compositions` record. */
+export type AnyCompositionDef = CompositionDef | LinkCompositionDef
+
+export function isLinkComposition(def: AnyCompositionDef): def is LinkCompositionDef {
+  return 'linkTable' in def
+}
+
 export interface VirtualFieldMeta {
   readonly key: string
   readonly kind: FieldKind
@@ -50,7 +100,7 @@ export interface BusinessObjectDef {
   readonly root: ViewDef | TableDef
   readonly paramField: string
   readonly actions: Readonly<Record<string, ActionDef>>
-  readonly compositions: Readonly<Record<string, CompositionDef>>
+  readonly compositions: Readonly<Record<string, AnyCompositionDef>>
   readonly associations: Readonly<Record<string, AssociationDef>>
   readonly valueHelps: Readonly<Record<string, ValueHelpViewDef>>
   readonly isReadOnly: boolean
@@ -92,7 +142,7 @@ export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<st
   name?: string
   paramField?: string & keyof C
   actions?: Record<string, ActionDef>
-  compositions?: Record<string, CompositionDef | ViewDef | TableDef>
+  compositions?: Record<string, AnyCompositionDef | ViewDef | TableDef>
   associations?: Record<string, AssociationDef>
   valueHelps?: Record<string, ValueHelpViewDef>
   routePrefix?: string
