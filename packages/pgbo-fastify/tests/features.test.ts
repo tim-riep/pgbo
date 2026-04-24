@@ -103,7 +103,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/bo/warehouse' })
+      const res = await app.inject({ method: 'GET', url: '/meta/warehouse' })
       const body = res.json()
       const slug = body.fields.find((f: any) => f.key === 'slug')
       expect(slug).toBeDefined()

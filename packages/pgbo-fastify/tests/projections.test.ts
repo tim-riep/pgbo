@@ -85,7 +85,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('read-only projection exposes GET metadata', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/bo/areaPublic' })
+      const res = await app.inject({ method: 'GET', url: '/meta/areaPublic' })
       expect(res.statusCode).toBe(200)
       expect(res.json().name).toBe('areaPublic')
       await app.close()
@@ -212,7 +212,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('metadata response omits non-projected fields', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/bo/areaMobile' })
+      const res = await app.inject({ method: 'GET', url: '/meta/areaMobile' })
       const fieldKeys = res.json().fields.map((f: { key: string }) => f.key)
       expect(fieldKeys).toEqual(['id', 'slug', 'name'])
       expect(fieldKeys).not.toContain('internalNote')
