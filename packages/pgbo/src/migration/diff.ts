@@ -2,6 +2,7 @@
 
 import type { DatabaseSnapshot } from './introspect.js'
 import type { TableDef, DomainDef, EnumDef, ViewDef, ValueHelpViewDef } from '../schema/definitions.js'
+import type { BusinessObjectDef } from '../bo/types.js'
 import { toSnakeCase, generateIndexName } from '../schema/table.js'
 
 export interface MigrationOperation {
@@ -26,7 +27,13 @@ export interface SchemaDefinitions {
   readonly enums: readonly EnumDef[]
   readonly tables: readonly TableDef[]
   readonly views: readonly ViewDef[]
-  readonly valueHelps?: readonly ValueHelpViewDef[]
+  /**
+   * Business Objects registered with the schema. migrate() walks `bo.valueHelps`
+   * for each BO, dedupes by name, and emits CREATE VIEW for each unique value help
+   * that doesn't already exist in the database — so declaring a value help on a BO
+   * is all the wiring needed (issue #31).
+   */
+  readonly bos?: readonly BusinessObjectDef[]
 }
 
 export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot): MigrationPlan {
@@ -125,8 +132,8 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
     }
   }
 
-  // --- 6. Value help views (issue #31) ---
-  for (const vh of definitions.valueHelps ?? []) {
+  // --- 6. Value help views discovered via registered BOs (issue #31) ---
+  for (const vh of collectValueHelps(definitions.bos ?? [])) {
     const existing = snapshot.views.find(v => v.name === vh.name)
     if (!existing) {
       operations.push({
@@ -137,6 +144,19 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
   }
 
   return { operations }
+}
+
+/** Walk BOs, collect unique value helps by name. Multiple BOs can share a value help
+ * (e.g. both `warehouseProduct` and `stockJournal` reuse `warehouseValueHelp`) — we emit
+ * CREATE VIEW only once per name. First occurrence wins. */
+function collectValueHelps(bos: readonly BusinessObjectDef[]): ValueHelpViewDef[] {
+  const seen = new Map<string, ValueHelpViewDef>()
+  for (const bo of bos) {
+    for (const vh of Object.values(bo.valueHelps)) {
+      if (!seen.has(vh.name)) seen.set(vh.name, vh)
+    }
+  }
+  return [...seen.values()]
 }
 
 /** Collect all tables including auto-generated translation tables */

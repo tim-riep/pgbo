@@ -9,6 +9,7 @@ import { domain } from '../../src/schema/domain.js'
 import { pgEnum } from '../../src/schema/enum.js'
 import { view, valueHelpView } from '../../src/schema/view.js'
 import { index } from '../../src/schema/constraints.js'
+import { defineBO } from '../../src/bo/index.js'
 
 const connectionString = process.env['PGBO_TEST_URL'] ?? 'postgresql://localhost:5432/postgres'
 
@@ -104,7 +105,7 @@ describe('Migration execution', () => {
     expect(after.tables.find(t => t.name === '_test_tx')).toBeUndefined()
   })
 
-  it('materialises value help views registered on SchemaDefinitions (issue #31)', async () => {
+  it('materialises value help views discovered via registered BOs (issue #31)', async () => {
     const vhDb = await createTestDatabase({ connectionString, schema: [] })
     try {
       const warehouseTable = table('warehouse', {
@@ -115,11 +116,22 @@ describe('Migration execution', () => {
         },
         primaryKey: ['id'],
       })
+      const warehouseView = view('warehouse_view').from(warehouseTable)
       const warehouseVh = valueHelpView('warehouse_vh').from(warehouseTable).key('slug').display('name')
+      const warehouseBO = defineBO(warehouseView, {
+        name: 'warehouse',
+        paramField: 'id',
+        valueHelps: { warehouse: warehouseVh },
+      })
 
       const snapshot = await introspect(vhDb.db)
       const plan = diff(
-        { domains: [], enums: [], tables: [warehouseTable], views: [], valueHelps: [warehouseVh] },
+        {
+          domains: [], enums: [],
+          tables: [warehouseTable],
+          views: [warehouseView],
+          bos: [warehouseBO],
+        },
         snapshot,
       )
       await migrate(vhDb.db, plan)
