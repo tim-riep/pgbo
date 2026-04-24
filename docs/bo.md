@@ -315,17 +315,69 @@ const enriched = await enrichCompositions(db, roleBO, items)
 
 ## Associations
 
-Associations are loose references to other entities (the referenced entity has its own lifecycle):
+Associations are references to other entities (the referenced entity has its own lifecycle). Declare them with the FK column and, optionally, a target entity so pgbo can batch-enrich parent rows on read.
 
 ```typescript
 const productBO = defineBO(productTable, {
   paramField: 'sku',
   actions: { create: {}, update: {}, delete: {} },
   associations: {
+    // Metadata only — FK is known, no enrichment
     warehouse: { foreignKey: 'warehouseSlug' },
   },
 })
 ```
+
+### Auto-enrichment on read — `merge` + `prefix`
+
+Lift fields from the target onto each parent row:
+
+```typescript
+const pageBO = defineBO(pageTable, {
+  paramField: 'id',
+  associations: {
+    area: {
+      foreignKey: 'areaId',
+      target: areaBO,              // BO → its compositions (e.g. translation) run
+      merge: ['name'],             // pull the resolved area.name
+      prefix: 'area',              // → parent.areaName
+    },
+  },
+})
+
+// Caller-locale translation resolves automatically when the target BO
+// has a composition like { locale: '$locale', merge: ['name'] }:
+await enrichAssociations(db, pageBO, pages, { ctx: { locale: 'de' } })
+// → each page gets .areaName = 'Navigation DE' / 'Verwaltung' / ...
+```
+
+### Attach — `attach` + `columns`
+
+Attach the target as a nested object, optionally narrowed to specific fields:
+
+```typescript
+associations: {
+  owner: {
+    foreignKey: 'ownerId',
+    target: userBO,
+    attach: 'owner',
+    columns: ['id', 'email'],     // → parent.owner = { id, email }
+  },
+}
+```
+
+If the FK is null, `parent.<attach>` is set to `null`. If `columns` is omitted, the full target row is attached.
+
+### Target types
+
+- **`target: ViewDef`** — simple FK lookup, no target compositions run
+- **`target: BusinessObjectDef`** — target's compositions run after load (so `$locale`-filtered translations resolve). Root can be either a view or a table.
+
+### Behaviour inside `registerProjection`
+
+`registerProjection` from `@pgbo/fastify` automatically calls `enrichAssociations` with the request ctx for both list and detail routes. If you're using the BO programmatically, call `enrichAssociations(db, bo, items, { ctx })` explicitly.
+
+Associations with neither `merge` nor `attach` are metadata-only — no target query happens.
 
 ## Value Helps
 

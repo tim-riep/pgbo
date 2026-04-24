@@ -10,7 +10,7 @@ import type { ViewDef } from '@pgbo/core/schema'
 import type { WhereConditions } from '@pgbo/core/query'
 import { parseListParams } from '@pgbo/core/query'
 import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
-import { enrichCompositions, projectRow, projectionExposes, type ProjectionDef } from '@pgbo/core/bo'
+import { enrichCompositions, enrichAssociations, projectRow, projectionExposes, type ProjectionDef } from '@pgbo/core/bo'
 import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
 
@@ -177,6 +177,9 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       if (Object.keys(bo.compositions).length > 0) {
         items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
       }
+      if (Object.keys(bo.associations).length > 0) {
+        items = await enrichAssociations(db, bo, items, { ctx: { ...ctx } })
+      }
       if (bo.transformItems) {
         items = await bo.transformItems(items, ctx.locale, db)
       }
@@ -199,6 +202,9 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       let items: Record<string, unknown>[] = [row]
       if (Object.keys(bo.compositions).length > 0) {
         items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
+      }
+      if (Object.keys(bo.associations).length > 0) {
+        items = await enrichAssociations(db, bo, items, { ctx: { ...ctx } })
       }
       if (bo.transformItems) {
         items = await bo.transformItems(items, ctx.locale, db)

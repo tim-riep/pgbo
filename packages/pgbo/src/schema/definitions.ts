@@ -250,9 +250,39 @@ type InferColumnsMap<M extends Record<string, any>, SourceCols extends Record<st
  * Read-time navigation relation from this view/BO to another entity.
  * `target` is optional and identifies the referenced view/table for metadata + enrichment.
  */
+/**
+ * Structural shape of a BO that can act as an association target.
+ * Defined here (rather than importing BusinessObjectDef from bo/) to avoid
+ * a circular module dependency. The actual BO satisfies this shape.
+ */
+export interface AssociationTargetBO {
+  readonly name: string
+  readonly root: ViewDef | TableDef
+  readonly paramField: string
+  readonly compositions: Readonly<Record<string, unknown>>
+}
+
 export interface AssociationDef {
   readonly foreignKey: string
-  readonly target?: ViewDef | TableDef
+  readonly target?: ViewDef | TableDef | AssociationTargetBO
+  /**
+   * `'one'` (default) — FK points to a single target row.
+   * `'many'` — reverse-FK, multiple target rows match one parent (deferred to a follow-up PR).
+   */
+  readonly cardinality?: 'one' | 'many'
+  /**
+   * With `cardinality: 'one'`, lift these target fields onto the parent.
+   * Use `prefix` to avoid name collisions (e.g. `merge: ['name'], prefix: 'area'` → parent.areaName).
+   */
+  readonly merge?: readonly string[]
+  /** Prefix applied to merged field names: `${prefix}${CapitalizedField}`. */
+  readonly prefix?: string
+  /** Attach the target as a nested object under this key. Mutually exclusive with `merge`. */
+  readonly attach?: string
+  /** Narrow the target fields kept in the attached object (used with `attach`). */
+  readonly columns?: readonly string[]
+  /** WHERE clause applied to the target query. Context placeholders allowed (`$locale`, etc.). */
+  readonly where?: Record<string, unknown>
 }
 
 // --- View ---
