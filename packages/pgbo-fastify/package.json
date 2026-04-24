@@ -45,7 +45,7 @@
   },
   "homepage": "https://github.com/tim-riep/pgbo#readme",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@pgbo/core": "0.2.0"
