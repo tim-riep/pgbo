@@ -17,6 +17,22 @@ export interface CompositionDef {
   readonly table?: TableDef
   readonly parentKey: string
   readonly children?: Readonly<Record<string, CompositionDef>>
+  /**
+   * `'many'` (default) — return all matching children as an array.
+   * `'one'` — return a single object or `null`, filtered via `where`.
+   */
+  readonly cardinality?: 'many' | 'one'
+  /**
+   * Optional WHERE clause applied to the composition query. Values may be
+   * literal or context placeholders: `$locale` / `$userId` / `$tenantId` / `$now`.
+   */
+  readonly where?: Record<string, unknown>
+  /**
+   * With `cardinality: 'one'`, lifts these fields from the matched child onto
+   * the parent instead of attaching the child as a nested object.
+   * Commonly used for translations: `merge: ['name', 'description']`.
+   */
+  readonly merge?: readonly string[]
 }
 
 export interface VirtualFieldMeta {

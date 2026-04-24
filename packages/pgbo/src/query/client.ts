@@ -8,7 +8,7 @@ import { SelectBuilder } from './select.js'
 import { InsertBuilder } from './insert.js'
 import { UpdateBuilder } from './update.js'
 import { DeleteBuilder } from './delete.js'
-import { runTransaction, type TransactionClient } from './transaction.js'
+import { runTransaction, runContextualTransaction, type TransactionClient } from './transaction.js'
 import type { CacheProvider } from './cache.js'
 
 export type AuthHandler = (userId: string, restriction: Restriction) => Promise<boolean> | boolean
@@ -30,6 +30,9 @@ function makeAuthCheck(handler: AuthHandler, restriction: Restriction, viewName:
   }
 }
 
+/** Resolver for a session parameter. Called with the request `ctx` inside `db.withContext()`. */
+export type SessionParamResolver = (ctx: Record<string, unknown>) => string | number | boolean | null | undefined
+
 export interface DatabaseConfig {
   connectionString: string
   pool?: {
@@ -40,6 +43,12 @@ export interface DatabaseConfig {
   }
   /** Optional cache provider. Enables `.cached()` on queries and auto-invalidation on BO writes. */
   cache?: CacheProvider
+  /**
+   * Postgres session parameters (`SET LOCAL <key> = <value>`) emitted at the start
+   * of every `db.withContext(ctx, ...)` scope. Values are resolved per-request from ctx.
+   * Views can read these with `current_setting('app.locale', true)`.
+   */
+  sessionParams?: Record<string, SessionParamResolver>
 }
 
 /** Internal table-level operations — used by framework internals (BO actions, seeds, testing) */
@@ -91,6 +100,14 @@ export interface Database extends Queryable {
 
   /** Run a callback in a transaction with auto-rollback on error */
   transaction<T>(fn: (tx: TransactionClient) => Promise<T>): Promise<T>
+
+  /**
+   * Open a scoped connection, emit `SET LOCAL` for each configured `sessionParams`
+   * resolved from `ctx`, then run `fn` with a `TransactionClient` bound to that
+   * connection. All queries inside the scope see the session parameters via
+   * `current_setting('app.key', true)`. Commits on success, rolls back on error.
+   */
+  withContext<T>(ctx: Record<string, unknown>, fn: (scoped: TransactionClient) => Promise<T>): Promise<T>
 
   /** Execute a raw SQL tagged template */
   raw<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -196,6 +213,16 @@ export function createDatabase(config: DatabaseConfig): Database {
 
     async transaction<T>(fn: (tx: TransactionClient) => Promise<T>): Promise<T> {
       return runTransaction(pool, fn, authHandler)
+    },
+
+    async withContext<T>(ctx: Record<string, unknown>, fn: (scoped: TransactionClient) => Promise<T>): Promise<T> {
+      const resolvers = config.sessionParams ?? {}
+      const resolved: Record<string, string | number | boolean | null> = {}
+      for (const [key, resolver] of Object.entries(resolvers)) {
+        const value = resolver(ctx)
+        if (value !== undefined) resolved[key] = value
+      }
+      return runContextualTransaction(pool, fn, resolved, authHandler)
     },
 
     async raw<T extends Record<string, unknown> = Record<string, unknown>>(

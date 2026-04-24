@@ -210,6 +210,71 @@ The function:
 4. Returns new objects — does not mutate the input
 5. Snake_case keys in child rows are converted to camelCase
 
+### Filtered compositions — cardinality, where, merge
+
+Compositions default to returning every matching child as an array (`cardinality: 'many'`). Three options change this:
+
+```typescript
+const areaBO = defineBO(areaTable, {
+  paramField: 'id',
+  compositions: {
+    // The one translation row matching the caller's locale
+    translation: {
+      table: areaTranslationTable,
+      parentKey: 'areaId',
+      cardinality: 'one',
+      where: { locale: '$locale' },
+    },
+    // Current contract — filter by validity window
+    currentContract: {
+      table: contractTable,
+      parentKey: 'customerId',
+      cardinality: 'one',
+      where: {
+        validFrom: { lte: '$now' },
+        validTo:   { gte: '$now' },
+      },
+    },
+    // Primary address — literal filter, no placeholder
+    primaryAddress: {
+      table: addressTable,
+      parentKey: 'customerId',
+      cardinality: 'one',
+      where: { isPrimary: 'yes' },
+    },
+  },
+})
+```
+
+**`cardinality`** — `'many'` (default, array) or `'one'` (single object or `null`).
+
+**`where`** — a WHERE clause applied to the composition query. Supports the same operators as `db.where()` (`lte`, `gte`, `ilike`, `any`, `in`, etc.) plus context placeholders:
+
+| Placeholder  | Resolved to   |
+|--------------|---------------|
+| `$locale`    | `ctx.locale`  |
+| `$userId`    | `ctx.userId`  |
+| `$tenantId`  | `ctx.tenantId`|
+| `$now`       | `new Date()`  |
+
+Pass `ctx` via `enrichCompositions(db, bo, items, { ctx })`. If a placeholder references ctx data that's missing, enrichment **throws** — failing loud beats silently returning unfiltered results.
+
+**`merge`** — with `cardinality: 'one'`, lifts the matched child's fields onto the parent instead of attaching a nested object. Common for translations:
+
+```typescript
+compositions: {
+  translation: {
+    table: areaTranslationTable,
+    parentKey: 'areaId',
+    cardinality: 'one',
+    where: { locale: '$locale' },
+    merge: ['name', 'description'],
+  },
+}
+
+// Result: { id, slug, name, description } — no nested 'translation' object
+```
+
 ### Nested Sub-Children
 
 Compositions can declare their own `children` for multi-level loading:

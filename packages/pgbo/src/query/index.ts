@@ -1,5 +1,5 @@
 export { createDatabase } from './client.js'
-export type { Database, DatabaseConfig, TableOps, AuthHandler } from './client.js'
+export type { Database, DatabaseConfig, TableOps, AuthHandler, SessionParamResolver } from './client.js'
 export type { Queryable } from './types.js'
 export { SelectBuilder, toCamelCase } from './select.js'
 export type { QuerySpec } from './select.js'
