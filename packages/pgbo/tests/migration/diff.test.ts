@@ -5,8 +5,9 @@ import { table } from '../../src/schema/table.js'
 import { text, integer, timestamp } from '../../src/schema/types.js'
 import { domain } from '../../src/schema/domain.js'
 import { pgEnum } from '../../src/schema/enum.js'
-import { view } from '../../src/schema/view.js'
+import { view, valueHelpView } from '../../src/schema/view.js'
 import { index } from '../../src/schema/constraints.js'
+import { defineBO } from '../../src/bo/index.js'
 
 const emptySnapshot: DatabaseSnapshot = {
   domains: [],
@@ -139,6 +140,77 @@ describe('Schema diff', () => {
     expect(domainIdx).toBeLessThan(enumIdx)
     expect(enumIdx).toBeLessThan(tableIdx)
     expect(tableIdx).toBeLessThan(viewIdx)
+  })
+
+  it('detects value help views via registered BOs (issue #31)', () => {
+    const warehouse = table('warehouse', {
+      columns: { id: integer().notNull(), slug: text().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const warehouseVh = valueHelpView('warehouse_vh').from(warehouse).key('slug').display('name')
+    const warehouseView = view('warehouse_view').from(warehouse)
+    const warehouseBO = defineBO(warehouseView, {
+      name: 'warehouse',
+      paramField: 'id',
+      valueHelps: { warehouse: warehouseVh },
+    })
+
+    const plan = diff(
+      { domains: [], enums: [], tables: [warehouse], views: [warehouseView], bos: [warehouseBO] },
+      emptySnapshot,
+    )
+    const vhOps = plan.operations.filter(op => op.type === 'createView' && op.sql.includes('warehouse_vh'))
+    expect(vhOps).toHaveLength(1)
+    expect(vhOps[0]!.sql).toBe('CREATE VIEW warehouse_vh AS SELECT slug, name FROM warehouse')
+  })
+
+  it('dedupes value helps shared across multiple BOs (same name → one CREATE VIEW)', () => {
+    const warehouse = table('warehouse', {
+      columns: { id: integer().notNull(), slug: text().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const whVh = valueHelpView('warehouse_vh').from(warehouse).key('slug').display('name')
+    const whView = view('warehouse_view').from(warehouse)
+
+    const boA = defineBO(whView, { name: 'boA', paramField: 'id', valueHelps: { wh: whVh } })
+    const boB = defineBO(whView, { name: 'boB', paramField: 'id', valueHelps: { wh: whVh } })
+
+    const plan = diff(
+      { domains: [], enums: [], tables: [warehouse], views: [whView], bos: [boA, boB] },
+      emptySnapshot,
+    )
+    const vhOps = plan.operations.filter(op => op.type === 'createView' && op.sql.includes('warehouse_vh'))
+    expect(vhOps).toHaveLength(1)
+  })
+
+  it('skips value help when the view already exists in snapshot', () => {
+    const warehouse = table('warehouse', {
+      columns: { id: integer().notNull(), slug: text().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const whVh = valueHelpView('warehouse_vh').from(warehouse).key('slug').display('name')
+    const whView = view('warehouse_view').from(warehouse)
+    const bo = defineBO(whView, { name: 'wh', paramField: 'id', valueHelps: { wh: whVh } })
+
+    const snapshot: DatabaseSnapshot = {
+      ...emptySnapshot,
+      views: [{ name: 'warehouse_vh' }],
+    }
+    const plan = diff(
+      { domains: [], enums: [], tables: [warehouse], views: [whView], bos: [bo] },
+      snapshot,
+    )
+    const vhOps = plan.operations.filter(op => op.sql.includes('warehouse_vh'))
+    expect(vhOps).toHaveLength(0)
+  })
+
+  it('does not require bos to be set on SchemaDefinitions (backward compat)', () => {
+    const users = table('users', {
+      columns: { id: integer().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const plan = diff({ domains: [], enums: [], tables: [users], views: [] }, emptySnapshot)
+    expect(plan.operations.filter(op => op.type === 'createTable')).toHaveLength(1)
   })
 
   it('detects auto-generated translation table from .translations()', () => {
