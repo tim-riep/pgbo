@@ -58,6 +58,12 @@ export default defineConfig({
           { text: 'Testing', link: '/testing' },
         ],
       },
+      {
+        text: 'Adapters',
+        items: [
+          { text: '@pgbo/fastify', link: '/fastify' },
+        ],
+      },
     ],
 
     socialLinks: [
