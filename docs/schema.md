@@ -267,6 +267,49 @@ FROM stock_document
 - Composite parent keys: `{ parentCol1: 'childCol1', parentCol2: 'childCol2' }`.
 - Optional `where` is raw SQL — qualify columns with the child table name.
 
+### Translated Views — `.translatedJoin()`
+
+Declare a locale-resolved view in the schema instead of writing `current_setting()` SQL by hand. Combined with [`sessionParams` + `db.withContext()`](query.md#request-scoped-context-dbwithcontext) it gives you locale-specific column values with no code-level filtering.
+
+```typescript
+const areaLocalizedView = view('area_localized')
+  .from(areaTable)
+  .translatedJoin(areaTranslationTable, {
+    parentKey: 'areaId',          // FK column on translation → parent
+    localeColumn: 'locale',       // locale column on translation
+    localeParam: 'app.locale',    // Postgres session param to read
+    fallbackLocale: 'en',         // optional — COALESCE'd into missing translations
+    fields: ['name', 'description'],
+  })
+```
+
+Generated DDL:
+```sql
+CREATE VIEW area_localized AS SELECT
+  area.id, area.slug,
+  COALESCE(t_req.name, t_fb.name) AS name,
+  COALESCE(t_req.description, t_fb.description) AS description
+FROM area
+LEFT JOIN area_translation t_req
+  ON t_req.area_id = area.id
+ AND t_req.locale = current_setting('app.locale', true)
+LEFT JOIN area_translation t_fb
+  ON t_fb.area_id = area.id
+ AND t_fb.locale = 'en'
+```
+
+Usage — the locale comes from the request ctx via `db.withContext`:
+
+```typescript
+const rows = await db.withContext({ locale: 'de' }, async tx => {
+  return tx.from(areaLocalizedView).execute()
+})
+// → each row's `name` is the German translation, or the English fallback,
+//   or null if neither exists
+```
+
+Cannot be combined with `.columns()` — `.translatedJoin()` owns the output column list (source columns + translated fields).
+
 ### Value Help Views
 
 Flat read-only views for dropdowns:

@@ -285,6 +285,25 @@ export interface AssociationDef {
   readonly where?: Record<string, unknown>
 }
 
+/**
+ * Spec for a `.translatedJoin()` view helper — emits LEFT JOINs to a translation
+ * table filtered by a PostgreSQL session param (e.g. `app.locale`), with
+ * optional fallback-locale COALESCE.
+ */
+export interface TranslatedJoinSpec {
+  readonly translationTable: TableDef
+  /** FK column on the translation table that references the parent's PK. */
+  readonly parentKey: string
+  /** Column on the translation table holding the locale code. */
+  readonly localeColumn: string
+  /** Postgres session parameter to read with `current_setting()` — e.g. 'app.locale'. */
+  readonly localeParam: string
+  /** Fields from the translation table to expose as columns on the view. */
+  readonly fields: readonly string[]
+  /** Optional fallback-locale row; output columns become COALESCE(requested, fallback). */
+  readonly fallbackLocale?: string
+}
+
 // --- View ---
 
 export interface ViewDef<
@@ -299,6 +318,7 @@ export interface ViewDef<
   readonly restrictions?: readonly Restriction[]
   readonly isNoAuth?: boolean
   readonly viewAssociations?: Readonly<Record<string, AssociationDef>>
+  readonly translatedJoinSpec?: TranslatedJoinSpec
   /** Phantom type carrying the inferred row shape */
   readonly _rowType?: TRow
   from<C extends Record<string, AnyColumnBuilder>>(table: TableDef<C>): ViewDef<TRow, C>
@@ -312,6 +332,12 @@ export interface ViewDef<
   noAuth(): ViewDef<TRow, SC>
   /** Declare read-time navigation relations. BOs built on this view inherit them. */
   associations(assocs: Record<string, AssociationDef>): ViewDef<TRow, SC>
+  /**
+   * Emit a LEFT JOIN to a translation table filtered by a Postgres session
+   * parameter (`current_setting('app.locale', true)`). Optional fallback-locale
+   * JOIN with COALESCE so missing translations still return something.
+   */
+  translatedJoin(translationTable: TableDef, spec: Omit<TranslatedJoinSpec, 'translationTable'>): ViewDef<TRow, SC>
   /** Brand the view with an explicit row type (escape hatch) */
   as<T extends Record<string, unknown>>(): ViewDef<T>
   toSQL(): string
