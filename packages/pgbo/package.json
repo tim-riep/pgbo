@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Type-safe PostgreSQL Business Objects — tables, views, domains, auto-migration, native i18n",
   "type": "module",
   "main": "dist/index.js",

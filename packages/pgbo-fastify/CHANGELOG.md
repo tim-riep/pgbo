@@ -1,5 +1,69 @@
 # @pgbo/fastify
 
+## 2.0.0
+
+### Major Changes
+
+- 2f6a436: Fix metadata route collision when `routePrefix` is not set (closes #24).
+
+  **Breaking change**: BO metadata moves from `GET /bo/{projection.name}` to `GET /meta/{projection.name}`.
+
+  ### Why
+
+  With no explicit `routePrefix` on the BO or `prefix` in the route config, the list route defaulted to `/bo/{projection.name}` — the same path used for metadata. Fastify refused to boot:
+
+  > FastifyError: Method 'GET' already declared for route '/bo/warehouseProduct'
+
+  This meant every BO without a custom `routePrefix` broke the app at startup.
+
+  ### Fix
+
+  Metadata now lives in a dedicated `/meta/{projection.name}` namespace, sidestepping any path collision with list or detail routes. Value help endpoints (`/bo/{projection.name}/valueHelp/{vh}`) and custom actions (`POST /bo/{projection.name}/{actionName}`) stay unchanged.
+
+  ### Migration
+
+  Frontend clients that fetched BO metadata must update the URL:
+
+  ```diff
+  - GET /bo/warehouse
+  + GET /meta/warehouse
+  ```
+
+  The response shape is unchanged.
+
+### Minor Changes
+
+- c8b1a44: Auto-enrich associations on reads with optional merge + attach (closes #23).
+
+  `AssociationDef` gains read-time enrichment vocabulary symmetric to compositions:
+
+  - `cardinality: 'one' | 'many'` — default `'one'`; `'many'` reserved for a follow-up
+  - `merge: readonly string[]` + `prefix?: string` — lift target fields onto the parent (`merge: ['name'], prefix: 'area'` → `parent.areaName`)
+  - `attach: string` + `columns?: readonly string[]` — attach target as a nested object, optionally narrowed
+  - `where?: Record<string, unknown>` — additional filter on the target query (context placeholders supported)
+  - `target` type widened to `ViewDef | TableDef | BusinessObjectDef` — BO targets run their own compositions (translations), so `merge: ['name']` picks the resolved locale-specific name automatically
+
+  ### New exports in `@pgbo/core`
+
+  - `enrichAssociations(db, bo, items, { ctx? })` from `@pgbo/core/bo`
+  - `EnrichAssociationsOptions` type
+  - `AssociationTargetBO` structural type (re-exported from `@pgbo/core/schema`)
+
+  ### `@pgbo/fastify`
+
+  `registerProjection`'s GET list and GET detail handlers now call `enrichAssociations` after `enrichCompositions`, forwarding the request ctx. No API change — existing code keeps working.
+
+  Associations without `merge` or `attach` remain metadata-only (no DB hit).
+
+  Deferred: `cardinality: 'many'` reverse-FK associations; projection-level per-association overrides (part of #15 composability follow-up).
+
+### Patch Changes
+
+- Updated dependencies [c8b1a44]
+- Updated dependencies [c128a4a]
+- Updated dependencies [fe95446]
+  - @pgbo/core@0.4.0
+
 ## 1.0.1
 
 ### Patch Changes

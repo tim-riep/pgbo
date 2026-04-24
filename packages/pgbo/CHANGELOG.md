@@ -1,5 +1,109 @@
 # @pgbo/core
 
+## 0.4.0
+
+### Minor Changes
+
+- c8b1a44: Auto-enrich associations on reads with optional merge + attach (closes #23).
+
+  `AssociationDef` gains read-time enrichment vocabulary symmetric to compositions:
+
+  - `cardinality: 'one' | 'many'` — default `'one'`; `'many'` reserved for a follow-up
+  - `merge: readonly string[]` + `prefix?: string` — lift target fields onto the parent (`merge: ['name'], prefix: 'area'` → `parent.areaName`)
+  - `attach: string` + `columns?: readonly string[]` — attach target as a nested object, optionally narrowed
+  - `where?: Record<string, unknown>` — additional filter on the target query (context placeholders supported)
+  - `target` type widened to `ViewDef | TableDef | BusinessObjectDef` — BO targets run their own compositions (translations), so `merge: ['name']` picks the resolved locale-specific name automatically
+
+  ### New exports in `@pgbo/core`
+
+  - `enrichAssociations(db, bo, items, { ctx? })` from `@pgbo/core/bo`
+  - `EnrichAssociationsOptions` type
+  - `AssociationTargetBO` structural type (re-exported from `@pgbo/core/schema`)
+
+  ### `@pgbo/fastify`
+
+  `registerProjection`'s GET list and GET detail handlers now call `enrichAssociations` after `enrichCompositions`, forwarding the request ctx. No API change — existing code keeps working.
+
+  Associations without `merge` or `attach` remain metadata-only (no DB hit).
+
+  Deferred: `cardinality: 'many'` reverse-FK associations; projection-level per-association overrides (part of #15 composability follow-up).
+
+- c128a4a: Many-to-many compositions via link tables (closes #25, read path).
+
+  A new `LinkCompositionDef` shape resolves parent → link table → target entity:
+
+  ```ts
+  const productBO = defineBO(productTable, {
+    compositions: {
+      warehouses: {
+        linkTable: productWarehouseTable,
+        linkParentKey: "wku",
+        linkTargetKey: "warehouseSlug",
+        target: warehouseBO,
+        columns: ["slug", "name"],
+        linkWhere: { archived: { isNull: true } },
+        where: { active: true },
+      },
+    },
+  });
+  ```
+
+  ### Behaviour on read
+
+  `enrichCompositions` batches three queries per parent group:
+
+  1. `SELECT FROM linkTable WHERE linkParentKey = ANY($1) [AND linkWhere]`
+  2. `SELECT FROM target WHERE target.paramField = ANY(targetKeys) [AND where]`
+  3. If `target` is a BO, its own compositions run (e.g. translation resolution — `$locale` placeholders supported via `ctx`).
+
+  Each parent gets an array of target rows under the composition name. `columns` narrows the exposed fields per element.
+
+  ### New exports from `@pgbo/core/bo`
+
+  - `LinkCompositionDef` — the M2M shape
+  - `AnyCompositionDef` — union of the plain + link-through variants
+  - `BoTarget` — structural type for BOs used as composition targets
+  - `isLinkComposition(def)` — discriminator helper
+
+  ### Scope
+
+  **Read-only for now.** Write-through support (replace / add / remove semantics for M2M payloads in `bo.create()` / `bo.update()`) is deferred to a follow-up PR — link-data passed in write calls is currently ignored.
+
+- fe95446: Add `.translatedJoin()` view helper (closes #14 — last remaining part).
+
+  Declare a locale-resolved view in the schema instead of writing `current_setting()` SQL by hand:
+
+  ```ts
+  const areaLocalizedView = view("area_localized")
+    .from(areaTable)
+    .translatedJoin(areaTranslationTable, {
+      parentKey: "areaId",
+      localeColumn: "locale",
+      localeParam: "app.locale",
+      fallbackLocale: "en", // optional — COALESCE'd into missing translations
+      fields: ["name", "description"],
+    });
+  ```
+
+  ### Generated SQL
+
+  Without fallback: one `LEFT JOIN translation t_req ON t_req.<parentKey> = parent.<pk> AND t_req.<localeCol> = current_setting('<param>', true)` plus `t_req.<field>` columns.
+
+  With fallback: adds a second `LEFT JOIN translation t_fb ON ... AND t_fb.<localeCol> = '<fallback>'` plus `COALESCE(t_req.<field>, t_fb.<field>) AS <field>` columns so missing translations still return something.
+
+  ### Pairs with `db.withContext` + `sessionParams`
+
+  The locale is resolved per-request via the session-params infrastructure (from PR #16). `db.withContext({ locale: 'de' }, tx => tx.from(view).execute())` transparently filters translations across every query in the scope.
+
+  ### Constraints
+
+  - `.translatedJoin()` cannot be combined with `.columns()` — they both own the output column list. Throws at builder time with a clear message.
+  - Source table must have a primary key; the first PK column is used for the join.
+
+  ### Exports
+
+  `TranslatedJoinSpec` type is now exported from `@pgbo/core/schema`.
+
 ## 0.3.0
 
 ### Minor Changes
