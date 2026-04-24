@@ -57,7 +57,6 @@ import { boMeta } from '@pgbo/core/metadata'
 
 const meta = boMeta(areaBO, {
   translations: { table: areaTranslationTable, parentKey: 'areaId', fields: ['name'] },
-  valueHelps: [{ name: 'warehouse', view: warehouseView }],
 })
 // {
 //   name: 'area',
@@ -65,9 +64,11 @@ const meta = boMeta(areaBO, {
 //   readOnly: false,
 //   fields: [...viewMeta fields + injected translation fields...],
 //   compositions: [{ name: 'translations', fields: ['areaId', 'locale', 'name'] }],
-//   valueHelps: [{ name: 'warehouse', fields: [...] }],
+//   valueHelps: [{ name: 'warehouse_vh', fields: [...] }],
 // }
 ```
+
+`valueHelps` are picked up directly from the BO — each entry in `bo.valueHelps` is a `ViewDef` with a `.vh({ key, display })` annotation (issue #34). `boMeta` extracts field metadata from each and exposes them under `meta.valueHelps`.
 
 Translation fields are injected as `kind: 'translation'` with `searchable: true` and `filterable: { type: 'text' }` by default.
 
