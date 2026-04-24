@@ -25,6 +25,6 @@ export type {
   ForeignKeyDef, ForeignKeyBuilder, IndexDef, IndexBuilder,
   CheckConstraintDef, CheckBuilder, ForeignKeyReference,
   FieldAnnotations, FieldKind, FilterOption, ColumnRef, JoinDef, ValueHelpViewDef, SubqueryCountRef, Restriction,
-  AssociationDef, AssociationTargetBO,
+  AssociationDef, AssociationTargetBO, TranslatedJoinSpec,
 } from './definitions.js'
 export { toSnakeCase } from './table.js'

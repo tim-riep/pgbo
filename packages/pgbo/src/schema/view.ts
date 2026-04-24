@@ -1,6 +1,6 @@
 // View builder — Phase 3 (Step 11) + i18n + JOIN support + typed columns
 
-import type { TableDef, ViewDef, ValueHelpViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction, AssociationDef } from './definitions.js'
+import type { TableDef, ViewDef, ValueHelpViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction, AssociationDef, TranslatedJoinSpec } from './definitions.js'
 import type { TranslatedRef } from './i18n.js'
 import { isTranslatedRef } from './i18n.js'
 import { isSubqueryCountRef } from './subquery.js'
@@ -22,6 +22,7 @@ function createViewDef(
   restrictions?: readonly Restriction[],
   isNoAuth?: boolean,
   viewAssociations?: Readonly<Record<string, AssociationDef>>,
+  translatedJoinSpec?: TranslatedJoinSpec,
 ): ViewDef<any, any> {
   const self: ViewDef = {
     name,
@@ -32,39 +33,56 @@ function createViewDef(
     restrictions,
     isNoAuth,
     viewAssociations,
+    translatedJoinSpec,
 
     from(table: TableDef) {
-      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
+      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     join(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     leftJoin(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'LEFT JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     columns(cols: Record<string, ColumnEntry>) {
-      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth, viewAssociations)
+      if (translatedJoinSpec) {
+        throw new Error(
+          `View "${name}": .columns() cannot be combined with .translatedJoin() — use one or the other. ` +
+          `.translatedJoin() already sets the output column list (source columns + translated fields).`,
+        )
+      }
+      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     where(condition: string) {
-      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth, viewAssociations)
+      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     restrict(r: Restriction) {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth, viewAssociations)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth, viewAssociations, translatedJoinSpec)
     },
 
     noAuth() {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true, viewAssociations)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true, viewAssociations, translatedJoinSpec)
     },
 
     associations(assocs: Record<string, AssociationDef>) {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, { ...viewAssociations, ...assocs })
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, { ...viewAssociations, ...assocs }, translatedJoinSpec)
+    },
+
+    translatedJoin(translationTable: TableDef, spec: Omit<TranslatedJoinSpec, 'translationTable'>) {
+      if (selectedColumns) {
+        throw new Error(
+          `View "${name}": .translatedJoin() cannot be combined with .columns() — use one or the other.`,
+        )
+      }
+      const fullSpec: TranslatedJoinSpec = { translationTable, ...spec }
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, fullSpec)
     },
 
     as<T extends Record<string, unknown>>() {
@@ -112,6 +130,20 @@ function createViewDef(
         }
       }
 
+      // .translatedJoin() — append COALESCE'd translated columns
+      if (translatedJoinSpec) {
+        const tReq = 't_req'
+        const tFb = 't_fb'
+        for (const field of translatedJoinSpec.fields) {
+          const snakeField = toSnakeCase(field)
+          if (translatedJoinSpec.fallbackLocale) {
+            colParts.push(`COALESCE(${tReq}.${snakeField}, ${tFb}.${snakeField}) AS ${snakeField}`)
+          } else {
+            colParts.push(`${tReq}.${snakeField} AS ${snakeField}`)
+          }
+        }
+      }
+
       let sql = `CREATE VIEW ${name} AS SELECT ${colParts.join(', ')} FROM ${tableName}`
 
       if (joins && joins.length > 0) {
@@ -130,6 +162,29 @@ function createViewDef(
           .map(pk => `${tableName}.${pk} = ${translationTableName}.${pk}`)
           .join(' AND ')
         sql += ` LEFT JOIN ${translationTableName} ON ${joinConditions}`
+      }
+
+      // .translatedJoin() — emit the LEFT JOINs
+      if (translatedJoinSpec) {
+        const parentPK = src.primaryKey[0]
+        if (!parentPK) {
+          throw new Error(`View "${name}": .translatedJoin() requires the source table "${tableName}" to have a primary key`)
+        }
+        const snakePK = toSnakeCase(parentPK)
+        const tt = translatedJoinSpec.translationTable.name
+        const snakeParentKey = toSnakeCase(translatedJoinSpec.parentKey)
+        const snakeLocaleCol = toSnakeCase(translatedJoinSpec.localeColumn)
+
+        sql += ` LEFT JOIN ${tt} t_req`
+          + ` ON t_req.${snakeParentKey} = ${tableName}.${snakePK}`
+          + ` AND t_req.${snakeLocaleCol} = current_setting('${translatedJoinSpec.localeParam}', true)`
+
+        if (translatedJoinSpec.fallbackLocale) {
+          const fb = translatedJoinSpec.fallbackLocale.replace(/'/g, "''")
+          sql += ` LEFT JOIN ${tt} t_fb`
+            + ` ON t_fb.${snakeParentKey} = ${tableName}.${snakePK}`
+            + ` AND t_fb.${snakeLocaleCol} = '${fb}'`
+        }
       }
 
       if (whereClause) {
