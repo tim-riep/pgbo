@@ -85,4 +85,5 @@ export function defineBO<
 
 export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionContext, type CompositionDef, type TypedBusinessObject, type VirtualFieldMeta, type ProjectionDef, type ProjectionConfig } from './types.js'
 export { enrichCompositions } from './enrich.js'
+export { enrichAssociations, type EnrichAssociationsOptions } from './enrich-associations.js'
 export { defineProjection, projectRow, projectionExposes } from './projection.js'
