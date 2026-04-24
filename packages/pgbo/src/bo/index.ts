@@ -83,5 +83,6 @@ export function defineBO<
   return impl as unknown as TypedBusinessObject<C, ResolveParam<C, Cfg>>
 }
 
-export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionContext, type CompositionDef, type TypedBusinessObject, type VirtualFieldMeta } from './types.js'
+export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionContext, type CompositionDef, type TypedBusinessObject, type VirtualFieldMeta, type ProjectionDef, type ProjectionConfig } from './types.js'
 export { enrichCompositions } from './enrich.js'
+export { defineProjection, projectRow, projectionExposes } from './projection.js'

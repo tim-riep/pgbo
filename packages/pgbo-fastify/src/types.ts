@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { Database } from '@pgbo/core'
 import type { ViewDef, ValueHelpViewDef } from '@pgbo/core/schema'
-import type { BusinessObjectDef } from '@pgbo/core/bo'
+import type { ProjectionDef } from '@pgbo/core/bo'
 
 export interface RouteContext {
   readonly app: FastifyInstance
@@ -13,12 +13,12 @@ export interface RouteContext {
   readonly locale: string
 }
 
-export interface BoRouteConfig {
-  /** The BO definition */
-  readonly bo: BusinessObjectDef
-  /** The view to query (defaults to bo.root if it's a ViewDef) */
+export interface ProjectionRouteConfig {
+  /** The projection — defines the HTTP surface (whitelist, columns, WHERE). */
+  readonly projection: ProjectionDef
+  /** The view to query (defaults to projection.bo.root if it's a ViewDef) */
   readonly view?: ViewDef
-  /** Route prefix override (defaults to bo.routePrefix or `/bo/${bo.name}`) */
+  /** Route prefix override (defaults to projection.bo.routePrefix or `/bo/${projection.name}`) */
   readonly prefix?: string
   /** Include global (tenant-less) rows alongside tenant-scoped rows */
   readonly includeGlobal?: boolean
@@ -28,7 +28,10 @@ export interface BoRouteConfig {
   readonly extractContext: (req: FastifyRequest) => RouteContext | Promise<RouteContext>
   /** Optional hook called after a successful create/update/delete — useful for cache invalidation */
   readonly afterWrite?: (ctx: RouteContext, action: 'create' | 'update' | 'delete') => void | Promise<void>
-  /** Value help views keyed by name. Registers GET /bo/{name}/valueHelp/{vhName}. Defaults to bo.valueHelps */
+  /**
+   * Value help views keyed by name. Registers `GET /bo/{projection.name}/valueHelp/{vhName}`.
+   * Defaults to `projection.bo.valueHelps`.
+   */
   readonly valueHelps?: Readonly<Record<string, ViewDef | ValueHelpViewDef>>
 }
 
