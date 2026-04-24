@@ -175,7 +175,7 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
       let items = result.items as Record<string, unknown>[]
       if (Object.keys(bo.compositions).length > 0) {
-        items = await enrichCompositions(db, bo, items)
+        items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
       }
       if (bo.transformItems) {
         items = await bo.transformItems(items, ctx.locale, db)
@@ -198,7 +198,7 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
       let items: Record<string, unknown>[] = [row]
       if (Object.keys(bo.compositions).length > 0) {
-        items = await enrichCompositions(db, bo, items)
+        items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
       }
       if (bo.transformItems) {
         items = await bo.transformItems(items, ctx.locale, db)
