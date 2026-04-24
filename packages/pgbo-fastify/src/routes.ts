@@ -209,8 +209,9 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       return items[0]
     })
 
-    // Metadata — reflects the narrowed surface
-    app.get(`/bo/${projection.name}`, () => transformProjectionMeta(projection, boMeta(bo)))
+    // Metadata — reflects the narrowed surface. Lives in a separate `/meta/` namespace
+    // so it never collides with the list/detail route prefix (#24).
+    app.get(`/meta/${projection.name}`, () => transformProjectionMeta(projection, boMeta(bo)))
 
     // Value help endpoints
     if (Object.keys(valueHelps).length > 0) {

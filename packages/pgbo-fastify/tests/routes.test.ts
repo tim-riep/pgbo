@@ -123,7 +123,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/bo/warehouse' })
+      const res = await app.inject({ method: 'GET', url: '/meta/warehouse' })
       const body = res.json()
       expect(res.statusCode).toBe(200)
       expect(body.fields).toBeDefined()
