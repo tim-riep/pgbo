@@ -5,7 +5,7 @@ import { table } from '../../src/schema/table.js'
 import { text, integer, timestamp } from '../../src/schema/types.js'
 import { domain } from '../../src/schema/domain.js'
 import { pgEnum } from '../../src/schema/enum.js'
-import { view } from '../../src/schema/view.js'
+import { view, valueHelpView } from '../../src/schema/view.js'
 import { index } from '../../src/schema/constraints.js'
 
 const emptySnapshot: DatabaseSnapshot = {
@@ -139,6 +139,49 @@ describe('Schema diff', () => {
     expect(domainIdx).toBeLessThan(enumIdx)
     expect(enumIdx).toBeLessThan(tableIdx)
     expect(tableIdx).toBeLessThan(viewIdx)
+  })
+
+  it('detects new value help view (issue #31)', () => {
+    const warehouses = table('warehouse', {
+      columns: { id: integer().notNull(), slug: text().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const warehouseVh = valueHelpView('warehouse_vh').from(warehouses).key('slug').display('name')
+    const plan = diff(
+      { domains: [], enums: [], tables: [warehouses], views: [], valueHelps: [warehouseVh] },
+      emptySnapshot,
+    )
+    const vhOps = plan.operations.filter(op => op.type === 'createView' && op.sql.includes('warehouse_vh'))
+    expect(vhOps).toHaveLength(1)
+    expect(vhOps[0]!.sql).toBe('CREATE VIEW warehouse_vh AS SELECT slug, name FROM warehouse')
+  })
+
+  it('skips value help view when it already exists in snapshot', () => {
+    const warehouses = table('warehouse', {
+      columns: { id: integer().notNull(), slug: text().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    const warehouseVh = valueHelpView('warehouse_vh').from(warehouses).key('slug').display('name')
+    const snapshot: DatabaseSnapshot = {
+      ...emptySnapshot,
+      views: [{ name: 'warehouse_vh' }],
+    }
+    const plan = diff(
+      { domains: [], enums: [], tables: [warehouses], views: [], valueHelps: [warehouseVh] },
+      snapshot,
+    )
+    const vhOps = plan.operations.filter(op => op.type === 'createView')
+    expect(vhOps).toHaveLength(0)
+  })
+
+  it('does not require valueHelps to be set on SchemaDefinitions (backward compat)', () => {
+    const users = table('users', {
+      columns: { id: integer().notNull(), name: text().notNull() },
+      primaryKey: ['id'],
+    })
+    // No valueHelps field at all — this must still typecheck and work
+    const plan = diff({ domains: [], enums: [], tables: [users], views: [] }, emptySnapshot)
+    expect(plan.operations.filter(op => op.type === 'createTable')).toHaveLength(1)
   })
 
   it('detects auto-generated translation table from .translations()', () => {

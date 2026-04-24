@@ -1,7 +1,7 @@
 // Schema diff algorithm — Phase 4 (Step 13)
 
 import type { DatabaseSnapshot } from './introspect.js'
-import type { TableDef, DomainDef, EnumDef, ViewDef } from '../schema/definitions.js'
+import type { TableDef, DomainDef, EnumDef, ViewDef, ValueHelpViewDef } from '../schema/definitions.js'
 import { toSnakeCase, generateIndexName } from '../schema/table.js'
 
 export interface MigrationOperation {
@@ -26,6 +26,7 @@ export interface SchemaDefinitions {
   readonly enums: readonly EnumDef[]
   readonly tables: readonly TableDef[]
   readonly views: readonly ViewDef[]
+  readonly valueHelps?: readonly ValueHelpViewDef[]
 }
 
 export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot): MigrationPlan {
@@ -120,6 +121,17 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
       operations.push({
         type: 'createView',
         sql: viewDef.toSQL(),
+      })
+    }
+  }
+
+  // --- 6. Value help views (issue #31) ---
+  for (const vh of definitions.valueHelps ?? []) {
+    const existing = snapshot.views.find(v => v.name === vh.name)
+    if (!existing) {
+      operations.push({
+        type: 'createView',
+        sql: vh.toSQL(),
       })
     }
   }

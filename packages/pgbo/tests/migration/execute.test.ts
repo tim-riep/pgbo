@@ -7,7 +7,7 @@ import { table } from '../../src/schema/table.js'
 import { text, integer, timestamp } from '../../src/schema/types.js'
 import { domain } from '../../src/schema/domain.js'
 import { pgEnum } from '../../src/schema/enum.js'
-import { view } from '../../src/schema/view.js'
+import { view, valueHelpView } from '../../src/schema/view.js'
 import { index } from '../../src/schema/constraints.js'
 
 const connectionString = process.env['PGBO_TEST_URL'] ?? 'postgresql://localhost:5432/postgres'
@@ -102,6 +102,38 @@ describe('Migration execution', () => {
     // The first table should NOT exist (rolled back)
     const after = await introspect(testDb.db)
     expect(after.tables.find(t => t.name === '_test_tx')).toBeUndefined()
+  })
+
+  it('materialises value help views registered on SchemaDefinitions (issue #31)', async () => {
+    const vhDb = await createTestDatabase({ connectionString, schema: [] })
+    try {
+      const warehouseTable = table('warehouse', {
+        columns: {
+          id: integer().notNull(),
+          slug: text().notNull(),
+          name: text().notNull(),
+        },
+        primaryKey: ['id'],
+      })
+      const warehouseVh = valueHelpView('warehouse_vh').from(warehouseTable).key('slug').display('name')
+
+      const snapshot = await introspect(vhDb.db)
+      const plan = diff(
+        { domains: [], enums: [], tables: [warehouseTable], views: [], valueHelps: [warehouseVh] },
+        snapshot,
+      )
+      await migrate(vhDb.db, plan)
+
+      const after = await introspect(vhDb.db)
+      expect(after.views.find(v => v.name === 'warehouse_vh')).toBeDefined()
+
+      // And it's queryable end-to-end
+      await vhDb.db.query("INSERT INTO warehouse (id, slug, name) VALUES (1, 'main', 'Main')")
+      const rows = await vhDb.db.query<{ slug: string; name: string }>('SELECT * FROM warehouse_vh')
+      expect(rows).toEqual([{ slug: 'main', name: 'Main' }])
+    } finally {
+      await vhDb.dispose()
+    }
   })
 
   it('records migration in _pgbo_migrations table', async () => {
