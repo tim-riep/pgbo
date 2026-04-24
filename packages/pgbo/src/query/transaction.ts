@@ -145,3 +145,43 @@ export async function runTransaction<T>(
     client.release()
   }
 }
+
+/**
+ * Like `runTransaction` but emits `SET LOCAL <key> = <value>` for each entry
+ * in `sessionParams` immediately after BEGIN, before handing the scoped client
+ * to `fn`. Used by `db.withContext(ctx, fn)`.
+ *
+ * Parameter keys are validated (letters, digits, `.`, `_`) to prevent SQL
+ * injection via config — user-provided values are bound as parameters.
+ */
+export async function runContextualTransaction<T>(
+  pool: pg.Pool,
+  fn: (tx: TransactionClient) => Promise<T>,
+  sessionParams: Record<string, string | number | boolean | null>,
+  authHandler?: AuthHandler,
+): Promise<T> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    for (const [rawKey, value] of Object.entries(sessionParams)) {
+      if (!/^[A-Za-z][A-Za-z0-9_.]*$/.test(rawKey)) {
+        throw new Error(`Invalid session parameter name "${rawKey}" — must match /^[A-Za-z][A-Za-z0-9_.]*$/`)
+      }
+      if (value === null) continue
+      // pg driver doesn't support bind params in SET, so stringify + single-quote-escape
+      const str = String(value).replaceAll("'", "''")
+      await client.query(`SET LOCAL ${rawKey} = '${str}'`)
+    }
+
+    const tx = createTransactionClient(client, authHandler)
+    const result = await fn(tx)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+}

@@ -338,6 +338,42 @@ await db.deleteFrom(areaView)
 await db.deleteFrom(warehouseView).all().execute()
 ```
 
+## Request-scoped context (`db.withContext`)
+
+Postgres has `current_setting('app.key', true)` for session-level config values. pgbo lets you bind those from a request `ctx` and use them directly in views — no code-level filtering needed.
+
+```typescript
+const db = createDatabase({
+  connectionString,
+  sessionParams: {
+    'app.locale':    (ctx) => ctx.locale,
+    'app.tenant_id': (ctx) => ctx.tenantId ?? '',
+    'app.user_id':   (ctx) => ctx.userId ?? '',
+  },
+})
+
+// Any view in the DB can now filter by these:
+// CREATE VIEW area_localized AS
+// SELECT a.id, a.slug, t.name
+// FROM area a
+// LEFT JOIN area_translation t
+//   ON t.area_id = a.id
+//  AND t.locale = current_setting('app.locale', true);
+
+// In the request handler:
+const rows = await db.withContext(req.user, async tx => {
+  return tx.from(areaLocalizedView).execute()
+})
+// → every query inside this scope sees app.locale / app.tenant_id / app.user_id
+//   exactly as resolved from req.user
+```
+
+`withContext` opens a dedicated connection, wraps everything in a transaction, emits `SET LOCAL` for each resolved param, runs `fn`, commits (or rolls back on error), and releases the connection. Zero per-query overhead — one transaction for the whole request.
+
+**The scoped client** — `tx` inside the callback is a `TransactionClient` with the same API as `db` (`from`, `into`, `update`, `deleteFrom`, `transaction`, `savepoint`, `query`, `raw`).
+
+**Safety** — resolver returning `undefined` or `null` skips that `SET LOCAL`. Parameter names are validated against `/^[A-Za-z][A-Za-z0-9_.]*$/` to prevent SQL injection via config. Values with single quotes are properly escaped.
+
 ## Transactions
 
 ```typescript
