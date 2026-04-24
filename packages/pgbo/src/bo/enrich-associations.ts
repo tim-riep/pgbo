@@ -6,7 +6,7 @@
 // composition gives you the caller-locale name lifted onto the parent.
 
 import type { Database } from '../query/client.js'
-import type { AssociationDef, AssociationTargetBO, ViewDef, TableDef } from '../schema/definitions.js'
+import type { AssociationDef, AssociationTargetBO, ViewDef } from '../schema/definitions.js'
 import type { BusinessObjectDef, ActionContext } from './types.js'
 import type { WhereConditions } from '../query/where.js'
 import { enrichCompositions } from './enrich.js'
@@ -25,7 +25,8 @@ function isViewDef(target: unknown): target is ViewDef {
 
 /** Capitalize the first letter — `name` → `Name` for prefix joining. */
 function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1)
+  if (s.length === 0) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 export interface EnrichAssociationsOptions {
@@ -54,7 +55,7 @@ export async function enrichAssociations<T extends Record<string, unknown>>(
   type Loaded = { name: string; def: AssociationDef; byKey: Map<unknown, Record<string, unknown>> }
 
   // Only associations with merge or attach trigger enrichment
-  const active = associations.filter(([, def]) => !!def.target && (def.merge || def.attach))
+  const active = associations.filter(([, def]) => !!def.target && (def.merge ?? def.attach))
   if (active.length === 0) {
     return items.map(item => ({ ...item }))
   }
