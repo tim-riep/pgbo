@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
 import { table, view, valueHelpView, text, integer, col } from '@pgbo/core/schema'
-import { defineBO } from '@pgbo/core/bo'
+import { defineBO, defineProjection } from '@pgbo/core/bo'
 import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
-import { registerBoRoutes } from '../src/index.js'
+import { registerProjection } from '../src/index.js'
 
 const connectionString = process.env.PGBO_TEST_URL ?? 'postgresql://localhost:5432/postgres'
 
@@ -34,6 +34,11 @@ const warehouseBO = defineBO(warehouseTable, {
   valueHelps: { warehouse: warehouseVH },
 })
 
+const warehouseProjection = defineProjection(warehouseBO, {
+  name: 'warehouse',
+  actions: { read: true, create: true, update: true, delete: true },
+})
+
 describe('pgbo-fastify — issue 026 features', () => {
   let testDb: TestDatabase
 
@@ -60,8 +65,8 @@ describe('pgbo-fastify — issue 026 features', () => {
   describe('1. ILIKE search via view annotations', () => {
     it('applies ILIKE on searchable columns when search param is present', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -75,8 +80,8 @@ describe('pgbo-fastify — issue 026 features', () => {
 
     it('searches across multiple searchable columns (OR)', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -92,8 +97,8 @@ describe('pgbo-fastify — issue 026 features', () => {
   describe('2. Metadata labelKey transform', () => {
     it('returns labelKey with fallback to `${boName}.${key}`', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -111,8 +116,8 @@ describe('pgbo-fastify — issue 026 features', () => {
   describe('3. Value help endpoints', () => {
     it('registers GET /bo/{name}/valueHelp/{vhName}', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -130,8 +135,8 @@ describe('pgbo-fastify — issue 026 features', () => {
     it('calls afterWrite after successful create/update/delete', async () => {
       const calls: Array<{ action: string }> = []
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
         afterWrite: (_ctx, action) => { calls.push({ action }) },
@@ -155,8 +160,8 @@ describe('pgbo-fastify — issue 026 features', () => {
   describe('5 + 6. Global flag + write protection', () => {
     it('adds global: true for tenant-less rows when includeGlobal', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         includeGlobal: true,
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
@@ -173,8 +178,8 @@ describe('pgbo-fastify — issue 026 features', () => {
 
     it('does NOT add global flag when includeGlobal is not set', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -187,8 +192,8 @@ describe('pgbo-fastify — issue 026 features', () => {
 
     it('returns 403 on PUT for global record when includeGlobal', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         includeGlobal: true,
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
@@ -204,8 +209,8 @@ describe('pgbo-fastify — issue 026 features', () => {
 
     it('returns 403 on DELETE for global record when includeGlobal', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         includeGlobal: true,
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
@@ -220,8 +225,8 @@ describe('pgbo-fastify — issue 026 features', () => {
       await testDb.raw("INSERT INTO warehouse (id, slug, name, tenant_id) VALUES (50, 'temp-tenant', 'Temp', 't1')")
 
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         includeGlobal: true,
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
 import { table, text, integer, view } from '@pgbo/core/schema'
-import { defineBO } from '@pgbo/core/bo'
+import { defineBO, defineProjection } from '@pgbo/core/bo'
 import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
-import { registerBoRoutes, registerViewRoute } from '../src/index.js'
+import { registerProjection, registerViewRoute } from '../src/index.js'
 
 const connectionString = process.env.PGBO_TEST_URL ?? 'postgresql://localhost:5432/postgres'
 
@@ -26,6 +26,11 @@ const warehouseBO = defineBO(warehouseTable, {
   orderBy: 'name',
 })
 
+const warehouseProjection = defineProjection(warehouseBO, {
+  name: 'warehouse',
+  actions: { read: true, create: true, update: true, delete: true },
+})
+
 describe('pgbo-fastify route factory', () => {
   let testDb: TestDatabase
 
@@ -46,11 +51,11 @@ describe('pgbo-fastify route factory', () => {
     await testDb.dispose()
   })
 
-  describe('registerBoRoutes', () => {
+  describe('registerProjection', () => {
     it('GET list returns paginated items', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -67,8 +72,8 @@ describe('pgbo-fastify route factory', () => {
 
     it('GET list respects ?limit and ?page', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -83,8 +88,8 @@ describe('pgbo-fastify route factory', () => {
 
     it('GET single item by paramField', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -99,8 +104,8 @@ describe('pgbo-fastify route factory', () => {
 
     it('GET single item 404 when not found', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -112,8 +117,8 @@ describe('pgbo-fastify route factory', () => {
 
     it('GET /bo/{name} returns metadata', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -128,8 +133,8 @@ describe('pgbo-fastify route factory', () => {
 
     it('POST creates a new item', async () => {
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
@@ -149,8 +154,8 @@ describe('pgbo-fastify route factory', () => {
     it('DELETE removes an item', async () => {
       await testDb.raw("INSERT INTO warehouse (id, slug, name) VALUES (99, 'temp', 'Temp')")
       const app = Fastify()
-      registerBoRoutes(app, testDb.db, {
-        bo: warehouseBO,
+      registerProjection(app, testDb.db, {
+        projection: warehouseProjection,
         view: warehouseView,
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
 import { table, view, text, integer } from '@pgbo/core/schema'
-import { defineBO } from '@pgbo/core/bo'
+import { defineBO, defineProjection } from '@pgbo/core/bo'
 import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
-import { registerBoRoutes, type FileResponse } from '../src/index.js'
+import { registerProjection, type FileResponse } from '../src/index.js'
 
 const connectionString = process.env.PGBO_TEST_URL ?? 'postgresql://localhost:5432/postgres'
 
@@ -58,6 +58,14 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
     },
   })
 
+  const roleProjection = defineProjection(roleBO, {
+    name: 'role',
+    actions: {
+      read: true, create: true, update: true, delete: true,
+      availableFragments: true, objectRefValues: true, pdf: true, markRead: true,
+    },
+  })
+
   beforeAll(async () => {
     testDb = await createTestDatabase({
       connectionString,
@@ -75,8 +83,8 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
 
   function mkApp(): ReturnType<typeof Fastify> {
     const app = Fastify()
-    registerBoRoutes(app, testDb.db, {
-      bo: roleBO,
+    registerProjection(app, testDb.db, {
+      projection: roleProjection,
       view: roleView,
       extractContext: () => ({ app, db: testDb.db, locale: 'en', userId: 'user-123' }),
     })
@@ -151,9 +159,10 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
         },
       },
     })
+    const testProjection = defineProjection(testBO, { name: 'role', actions: { download: true } })
     const app = Fastify()
-    registerBoRoutes(app, testDb.db, {
-      bo: testBO,
+    registerProjection(app, testDb.db, {
+      projection: testProjection,
       view: roleView,
       extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
     })
@@ -180,9 +189,10 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
         },
       },
     })
+    const throwingProjection = defineProjection(throwingBO, { name: 'role', actions: { broken: true } })
     const app = Fastify()
-    registerBoRoutes(app, testDb.db, {
-      bo: throwingBO,
+    registerProjection(app, testDb.db, {
+      projection: throwingProjection,
       view: roleView,
       extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
     })

@@ -2,6 +2,8 @@
 
 A Business Object (BO) is a managed entity that wraps a view with CRUD lifecycle, permission checks, and hooks. BOs are **read-only by default** — you must explicitly define actions to enable writes.
 
+**BOs are not exposed to HTTP directly.** Any HTTP surface goes through a [**Projection**](#projections) — an explicit whitelist of actions and columns. BOs stay importable for custom action handlers, CLI scripts, and internal use; projections are the only thing wired to `registerProjection` in `@pgbo/fastify`.
+
 ## Defining a BO
 
 ```typescript
@@ -338,3 +340,92 @@ const productBO = defineBO(productTable, {
   },
 })
 ```
+
+## Projections
+
+A projection is the HTTP surface layered on top of a BO. The BO holds the data model and write logic; the projection declares **exactly** what is reachable over HTTP — which actions are whitelisted, which columns are visible, and what root-level WHERE applies to every query.
+
+```typescript
+import { defineBO, defineProjection } from '@pgbo/core/bo'
+
+const areaBO = defineBO(areaTable, {
+  paramField: 'id',
+  actions: {
+    create: {}, update: {}, delete: {},
+    rebuildCache: { handler: async () => { /* ... */ } },
+    internalExport: { handler: async () => { /* ... */ } },
+  },
+})
+
+// Public read-only surface
+const areaPublic = defineProjection(areaBO, {
+  name: 'areaPublic',
+  actions: { read: true },
+  columns: ['id', 'slug', 'name'],  // internal columns hidden
+})
+
+// Admin surface — CRUD + one custom action, but NOT internalExport
+const areaAdmin = defineProjection(areaBO, {
+  name: 'areaAdmin',
+  actions: { read: true, create: true, update: true, delete: true, rebuildCache: true },
+})
+```
+
+### Explicit action whitelist
+
+Only actions listed with `true` produce routes. Standard keys:
+
+| Key        | Routes registered                         |
+|------------|-------------------------------------------|
+| `read`     | `GET {prefix}`, `GET {prefix}/:param`, `GET /bo/{name}` |
+| `create`   | `POST {prefix}`                           |
+| `update`   | `PUT {prefix}/:param`                     |
+| `delete`   | `DELETE {prefix}/:param`                  |
+| `<custom>` | `POST /bo/{name}/{custom}`                |
+
+Actions not mentioned in the whitelist produce no routes. Accidentally adding an action to the BO **does not** expose it — it must be explicitly whitelisted on every projection.
+
+### Column narrowing
+
+When `columns` is set, responses and the metadata endpoint return only those fields. Fields absent from the projection are invisible to the consumer.
+
+### Root WHERE
+
+`where` applies to every list, detail, update, and delete through the projection. Rows that don't match are invisible — detail returns `404`, updates/deletes on out-of-scope rows also return `404`.
+
+```typescript
+const activeCustomer = defineProjection(customerBO, {
+  name: 'activeCustomer',
+  actions: { read: true, update: true },
+  where: { status: 'ACTIVE' },
+})
+```
+
+### Registering the projection with Fastify
+
+```typescript
+import { registerProjection } from '@pgbo/fastify'
+
+registerProjection(app, db, {
+  projection: areaPublic,
+  view: areaView,
+  extractContext: req => ({ app, db, locale: 'en' }),
+})
+
+registerProjection(app, db, {
+  projection: areaAdmin,
+  view: areaView,
+  prefix: '/api/admin/areas',
+  extractContext: /* ... */,
+})
+```
+
+Multiple projections over the same BO coexist — you can surface a read-only public API, a CRUD admin API, and a reporting projection side-by-side without duplicating the BO.
+
+### Validation
+
+`defineProjection` throws at definition time if:
+- A whitelisted action doesn't exist on the underlying BO
+- A listed column doesn't exist on the BO's root table/view
+
+Fail-fast prevents broken projections from shipping.

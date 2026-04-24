@@ -62,6 +62,32 @@ export interface BusinessObjectDef {
   readonly transformItems?: (rows: Record<string, unknown>[], locale: string, db: any) => Promise<Record<string, unknown>[]>
 }
 
+// --- Projection (HTTP surface definition, layered on top of a BO) ---
+
+export interface ProjectionDef {
+  /** Public name used for routes, metadata endpoint, and logs */
+  readonly name: string
+  /** The underlying BO — data model + write logic + schema */
+  readonly bo: BusinessObjectDef
+  /**
+   * Explicit action whitelist. Only keys set to `true` are reachable via HTTP.
+   * Standard keys: 'read' (GET list + detail), 'create', 'update', 'delete'.
+   * Any custom action key from the BO can also be listed.
+   */
+  readonly actions: Readonly<Record<string, boolean>>
+  /** Narrow the visible columns in responses and metadata. Undefined → all BO columns. */
+  readonly columns?: readonly string[]
+  /** Applied to every list / detail / update / delete query through this projection. */
+  readonly where?: Record<string, unknown>
+}
+
+export interface ProjectionConfig {
+  readonly name: string
+  readonly actions: Record<string, boolean>
+  readonly columns?: readonly string[]
+  readonly where?: Record<string, unknown>
+}
+
 export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<string, AnyColumnBuilder>> {
   name?: string
   paramField?: string & keyof C
