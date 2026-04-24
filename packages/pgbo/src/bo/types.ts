@@ -1,6 +1,6 @@
 // Business Object type definitions — Phase 7 (Step 17)
 
-import type { ViewDef, ValueHelpViewDef, TableDef, AnyColumnBuilder, FieldKind, AssociationDef } from '../schema/definitions.js'
+import type { ViewDef, TableDef, AnyColumnBuilder, FieldKind, AssociationDef } from '../schema/definitions.js'
 
 /**
  * Structural shape of a BO that can act as a link-composition target.
@@ -102,7 +102,7 @@ export interface BusinessObjectDef {
   readonly actions: Readonly<Record<string, ActionDef>>
   readonly compositions: Readonly<Record<string, AnyCompositionDef>>
   readonly associations: Readonly<Record<string, AssociationDef>>
-  readonly valueHelps: Readonly<Record<string, ValueHelpViewDef>>
+  readonly valueHelps: Readonly<Record<string, ViewDef>>
   readonly isReadOnly: boolean
   readonly routePrefix?: string
   readonly orderBy?: string
@@ -144,7 +144,7 @@ export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<st
   actions?: Record<string, ActionDef>
   compositions?: Record<string, AnyCompositionDef | ViewDef | TableDef>
   associations?: Record<string, AssociationDef>
-  valueHelps?: Record<string, ValueHelpViewDef>
+  valueHelps?: Record<string, ViewDef>
   routePrefix?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'

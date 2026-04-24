@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { view, valueHelpView } from '../../src/schema/view.js'
+import { view } from '../../src/schema/view.js'
 import { col } from '../../src/schema/column.js'
 import { table } from '../../src/schema/table.js'
 import { text, integer, timestamp } from '../../src/schema/types.js'
@@ -96,38 +96,68 @@ describe('View builder', () => {
       expect(c.annotations.inForm).toBe(false)
     })
 
-    it('.valueHelp(view) links to dropdown source', () => {
-      const vh = valueHelpView('area_vh').from(area).key('slug').display('name')
+    it('.valueHelp(view) links to a vh-annotated view', () => {
+      const vh = view('area_vh').from(area)
+        .columns({ slug: col('slug'), name: col('name') })
+        .vh({ key: 'slug', display: 'name' })
       const c = col('areaSlug').valueHelp(vh)
       expect(c.annotations.valueHelp).toBe(vh)
+    })
+
+    it('.valueHelp() throws when the view is not .vh() annotated', () => {
+      const plainView = view('area_view').from(area)
+      expect(() => col('areaSlug').valueHelp(plainView)).toThrow(/not annotated with \.vh\(/)
     })
   })
 })
 
-describe('Value help view builder', () => {
-  it('creates a flat read-only view', () => {
-    const vh = valueHelpView('area_vh').from(area).key('slug').display('name')
-    expect(vh.name).toBe('area_vh')
-    expect(vh.keyField).toBe('slug')
-    expect(vh.displayField).toBe('name')
-  })
-
-  it('.key() sets the value field', () => {
-    const vh = valueHelpView('area_vh').from(area).key('slug').display('name')
-    expect(vh.keyField).toBe('slug')
-  })
-
-  it('.display() sets the display field', () => {
-    const vh = valueHelpView('area_vh').from(area).key('slug').display('name')
-    expect(vh.displayField).toBe('name')
-  })
-
-  it('generates correct DDL', () => {
-    const vh = valueHelpView('area_vh').from(area).key('slug').display('name')
+describe('.vh() value-help annotation (issue #34)', () => {
+  it('marks a regular view as a value help without changing DDL', () => {
+    const vh = view('area_vh').from(area)
+      .columns({ slug: col('slug'), name: col('name') })
+      .vh({ key: 'slug', display: 'name' })
+    expect(vh.vhAnnotation).toEqual({ key: 'slug', display: 'name' })
+    // DDL is just a normal view — no special branch
     const ddl = vh.toSQL()
     expect(ddl).toContain('CREATE VIEW area_vh AS')
-    expect(ddl).toContain('slug')
-    expect(ddl).toContain('name')
+    expect(ddl).toContain('area.slug')
     expect(ddl).toContain('FROM area')
+  })
+
+  it('supports .translatedJoin() on a vh view (the UoM use case)', () => {
+    const unitOfMeasure = table('unit_of_measure', {
+      columns: { slug: text().notNull() },
+      primaryKey: ['slug'],
+    })
+    const unitOfMeasureTranslation = table('unit_of_measure_translation', {
+      columns: {
+        uomSlug: text().notNull(),
+        locale: text().notNull(),
+        name: text().notNull(),
+        symbol: text().notNull(),
+      },
+      primaryKey: ['uomSlug', 'locale'],
+    })
+    const uomVh = view('uom_vh').from(unitOfMeasure)
+      .translatedJoin(unitOfMeasureTranslation, {
+        parentKey: 'uomSlug', localeColumn: 'locale',
+        localeParam: 'app.locale', fallbackLocale: 'en',
+        fields: ['name', 'symbol'],
+      })
+      .vh({ key: 'slug', display: 'name' })
+    expect(uomVh.vhAnnotation).toEqual({ key: 'slug', display: 'name' })
+    const ddl = uomVh.toSQL()
+    expect(ddl).toContain('LEFT JOIN unit_of_measure_translation t_req')
+    expect(ddl).toContain('COALESCE(t_req.name, t_fb.name) AS name')
+  })
+
+  it('throws when .vh() is followed by .associations()', () => {
+    const vh = view('area_vh').from(area).vh({ key: 'slug', display: 'name' })
+    expect(() => vh.associations({ foo: { foreignKey: 'slug' } })).toThrow(/cannot be combined with \.vh\(\)/)
+  })
+
+  it('throws when .associations() is followed by .vh()', () => {
+    const v = view('area_view').from(area).associations({ foo: { foreignKey: 'slug' } })
+    expect(() => v.vh({ key: 'slug', display: 'name' })).toThrow(/cannot be combined with \.associations\(\)/)
   })
 })

@@ -2,7 +2,7 @@
 
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { Database } from '@pgbo/core'
-import type { ViewDef, ValueHelpViewDef } from '@pgbo/core/schema'
+import type { ViewDef } from '@pgbo/core/schema'
 import type { ProjectionDef } from '@pgbo/core/bo'
 
 export interface RouteContext {
@@ -32,7 +32,7 @@ export interface ProjectionRouteConfig {
    * Value help views keyed by name. Registers `GET /bo/{projection.name}/valueHelp/{vhName}`.
    * Defaults to `projection.bo.valueHelps`.
    */
-  readonly valueHelps?: Readonly<Record<string, ViewDef | ValueHelpViewDef>>
+  readonly valueHelps?: Readonly<Record<string, ViewDef>>
 }
 
 /**

@@ -49,6 +49,19 @@ export function defineBO<
   const viewAssocs = 'viewAssociations' in root ? root.viewAssociations ?? {} : {}
   const associations = { ...viewAssocs, ...(config.associations ?? {}) }
 
+  // Value helps must be views annotated with .vh() — surface a clear error instead
+  // of letting Fastify fail at request time when it can't find key/display columns.
+  const valueHelps = config.valueHelps ?? {}
+  for (const [vhName, vhView] of Object.entries(valueHelps)) {
+    if (!vhView.vhAnnotation) {
+      const boName = config.name ?? snakeToCamel(root.name)
+      throw new Error(
+        `BO "${boName}": valueHelps["${vhName}"] points to view "${vhView.name}" which has no .vh({ key, display }) annotation. ` +
+        `Mark it as a value help with .vh({ key: '…', display: '…' }) on the view.`,
+      )
+    }
+  }
+
   const bo: BusinessObjectDef = {
     name: config.name ?? snakeToCamel(root.name),
     root,
@@ -56,7 +69,7 @@ export function defineBO<
     actions: config.actions ?? {},
     compositions,
     associations,
-    valueHelps: config.valueHelps ?? {},
+    valueHelps,
     isReadOnly: !config.actions || Object.keys(config.actions).length === 0,
     routePrefix: config.routePrefix,
     orderBy: config.orderBy,

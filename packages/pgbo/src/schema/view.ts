@@ -1,6 +1,6 @@
 // View builder — Phase 3 (Step 11) + i18n + JOIN support + typed columns
 
-import type { TableDef, ViewDef, ValueHelpViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction, AssociationDef, TranslatedJoinSpec } from './definitions.js'
+import type { TableDef, ViewDef, ColumnRef, JoinDef, SubqueryCountRef, Restriction, AssociationDef, TranslatedJoinSpec, VhAnnotation } from './definitions.js'
 import type { TranslatedRef } from './i18n.js'
 import { isTranslatedRef } from './i18n.js'
 import { isSubqueryCountRef } from './subquery.js'
@@ -23,6 +23,7 @@ function createViewDef(
   isNoAuth?: boolean,
   viewAssociations?: Readonly<Record<string, AssociationDef>>,
   translatedJoinSpec?: TranslatedJoinSpec,
+  vhAnnotation?: VhAnnotation,
 ): ViewDef<any, any> {
   const self: ViewDef = {
     name,
@@ -34,19 +35,20 @@ function createViewDef(
     isNoAuth,
     viewAssociations,
     translatedJoinSpec,
+    vhAnnotation,
 
     from(table: TableDef) {
-      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, table, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     join(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     leftJoin(table: TableDef, on: Record<string, string>) {
       const newJoin: JoinDef = { table, on, type: 'LEFT JOIN' }
-      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, [...(joins ?? []), newJoin], selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     columns(cols: Record<string, ColumnEntry>) {
@@ -56,23 +58,29 @@ function createViewDef(
           `.translatedJoin() already sets the output column list (source columns + translated fields).`,
         )
       }
-      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, joins, cols, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     where(condition: string) {
-      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, joins, selectedColumns, condition, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     restrict(r: Restriction) {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, [...(restrictions ?? []), r], isNoAuth, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     noAuth() {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true, viewAssociations, translatedJoinSpec)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, true, viewAssociations, translatedJoinSpec, vhAnnotation)
     },
 
     associations(assocs: Record<string, AssociationDef>) {
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, { ...viewAssociations, ...assocs }, translatedJoinSpec)
+      if (vhAnnotation) {
+        throw new Error(
+          `View "${name}": .associations() cannot be combined with .vh() — value helps must stay flat. ` +
+          `If you need a navigable relation, use a regular view and don't mark it as a value help.`,
+        )
+      }
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, { ...viewAssociations, ...assocs }, translatedJoinSpec, vhAnnotation)
     },
 
     translatedJoin(translationTable: TableDef, spec: Omit<TranslatedJoinSpec, 'translationTable'>) {
@@ -82,7 +90,16 @@ function createViewDef(
         )
       }
       const fullSpec: TranslatedJoinSpec = { translationTable, ...spec }
-      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, fullSpec)
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, fullSpec, vhAnnotation)
+    },
+
+    vh(spec: VhAnnotation) {
+      if (viewAssociations && Object.keys(viewAssociations).length > 0) {
+        throw new Error(
+          `View "${name}": .vh() cannot be combined with .associations() — value helps must stay flat.`,
+        )
+      }
+      return createViewDef(name, source, joins, selectedColumns, whereClause, restrictions, isNoAuth, viewAssociations, translatedJoinSpec, spec)
     },
 
     as<T extends Record<string, unknown>>() {
@@ -200,64 +217,4 @@ function createViewDef(
 
 export function view(name: string): ViewDef<any, any> {
   return createViewDef(name)
-}
-
-export function valueHelpView(name: string): ValueHelpViewDef {
-  const self: ValueHelpViewDef = {
-    name,
-    source: undefined,
-    keyField: undefined,
-    displayField: undefined,
-
-    from(table: TableDef) {
-      return createValueHelpViewDef(name, table, self.keyField, self.displayField)
-    },
-    key(field: string) {
-      return createValueHelpViewDef(name, self.source, field, self.displayField)
-    },
-    display(field: string) {
-      return createValueHelpViewDef(name, self.source, self.keyField, field)
-    },
-    toSQL() {
-      const src = self.source
-      if (!src) throw new Error(`Value help view "${name}" has no source — call .from(table) first`)
-      const cols = [self.keyField, self.displayField]
-        .filter((f): f is string => Boolean(f))
-        .map(f => toSnakeCase(f))
-        .join(', ')
-      return `CREATE VIEW ${name} AS SELECT ${cols} FROM ${src.name}`
-    },
-  }
-  return self
-}
-
-function createValueHelpViewDef(
-  name: string,
-  source?: TableDef,
-  keyField?: string,
-  displayField?: string,
-): ValueHelpViewDef {
-  return {
-    name,
-    source,
-    keyField,
-    displayField,
-    from(table: TableDef) {
-      return createValueHelpViewDef(name, table, keyField, displayField)
-    },
-    key(field: string) {
-      return createValueHelpViewDef(name, source, field, displayField)
-    },
-    display(field: string) {
-      return createValueHelpViewDef(name, source, keyField, field)
-    },
-    toSQL() {
-      if (!source) throw new Error(`Value help view "${name}" has no source — call .from(table) first`)
-      const cols = [keyField, displayField]
-        .filter((f): f is string => Boolean(f))
-        .map(f => toSnakeCase(f))
-        .join(', ')
-      return `CREATE VIEW ${name} AS SELECT ${cols} FROM ${source.name}`
-    },
-  }
 }

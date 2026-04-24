@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
-import { table, view, valueHelpView, text, integer, col } from '@pgbo/core/schema'
+import { table, view, text, integer, col } from '@pgbo/core/schema'
 import { defineBO, defineProjection } from '@pgbo/core/bo'
 import { createTestDatabase, type TestDatabase } from '@pgbo/core/testing'
 import { registerProjection } from '../src/index.js'
@@ -24,8 +24,9 @@ const warehouseView = view('warehouse_view').from(warehouseTable).columns({
   tenantId: col('tenantId'),
 })
 
-const warehouseVH = valueHelpView('warehouse_vh')
-  .from(warehouseTable).key('slug').display('name')
+const warehouseVH = view('warehouse_vh').from(warehouseTable)
+  .columns({ slug: col('slug'), name: col('name') })
+  .vh({ key: 'slug', display: 'name' })
 
 const warehouseBO = defineBO(warehouseTable, {
   paramField: 'slug',
