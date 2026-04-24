@@ -143,7 +143,7 @@ async function loadLinkComposition(
     targetRows = await db.from(target).where(where).execute() as Record<string, unknown>[]
   } else {
     // Plain TableDef target
-    const targetTable = target as TableDef
+    const targetTable = target
     const pk = targetTable.primaryKey[0]
     if (!pk) {
       throw new Error(`Link composition target table "${targetTable.name}" has no primary key`)

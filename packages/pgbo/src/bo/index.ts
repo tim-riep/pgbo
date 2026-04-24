@@ -2,7 +2,7 @@
 
 import type { ViewDef, TableDef, AnyColumnBuilder } from '../schema/definitions.js'
 import type { Database } from '../query/client.js'
-import type { BusinessObjectDef, BOConfig, ActionContext, CompositionDef, AnyCompositionDef, TypedBusinessObject } from './types.js'
+import type { BusinessObjectDef, BOConfig, ActionContext, AnyCompositionDef, TypedBusinessObject } from './types.js'
 import { executeAction } from './actions.js'
 
 function snakeToCamel(s: string): string {
@@ -13,7 +13,7 @@ function normalizeComposition(value: AnyCompositionDef | ViewDef | TableDef): An
   // Link-table M2M composition — pass through as-is
   if ('linkTable' in value) return value
   // Plain composition with explicit config — pass through
-  if ('parentKey' in value) return value as CompositionDef
+  if ('parentKey' in value) return value
   // Shorthand: a TableDef passed directly (legacy shape, parentKey inferred/empty)
   if ('columns' in value) return { table: value as TableDef, parentKey: '' }
   // Shorthand: a ViewDef passed directly
