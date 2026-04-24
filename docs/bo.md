@@ -277,6 +277,42 @@ compositions: {
 // Result: { id, slug, name, description } — no nested 'translation' object
 ```
 
+### Many-to-many via link tables
+
+A third composition shape resolves parent → link table → target entity in two batched queries. Useful for M2M patterns like product↔warehouse assignments where you want each product row to carry the list of warehouses it's assigned to, with target compositions (translations) resolved for free.
+
+```typescript
+const productBO = defineBO(productTable, {
+  paramField: 'wku',
+  compositions: {
+    warehouses: {
+      linkTable: productWarehouseTable,       // junction table
+      linkParentKey: 'wku',                    // FK on link → parent
+      linkTargetKey: 'warehouseSlug',          // FK on link → target
+      target: warehouseBO,                     // BO → its compositions run
+      columns: ['slug', 'name'],               // narrow exposed target fields
+    },
+    activeWarehouses: {
+      linkTable: productWarehouseTable,
+      linkParentKey: 'wku',
+      linkTargetKey: 'warehouseSlug',
+      target: warehouseBO,
+      linkWhere: { archived: { isNull: true } }, // filter on the link rows
+      where: { active: true },                   // filter on the target rows
+    },
+  },
+})
+```
+
+On read, `enrichCompositions` runs three batches per parent group:
+1. `SELECT linkParentKey, linkTargetKey FROM linkTable WHERE linkParentKey = ANY($1) [AND linkWhere]`
+2. `SELECT * FROM target WHERE target.paramField = ANY(targetKeys) [AND where]`
+3. If `target` is a BO, run its own compositions (translations, etc.)
+
+Attached as an array under the composition name: `product.warehouses: [{ slug, name }, ...]` with locale-resolved names when the target is a translated BO.
+
+**Writes are not yet supported** — replace/add/remove semantics for M2M payloads are a follow-up. Passing link data in `bo.create()` input is currently ignored.
+
 ### Nested Sub-Children
 
 Compositions can declare their own `children` for multi-level loading:

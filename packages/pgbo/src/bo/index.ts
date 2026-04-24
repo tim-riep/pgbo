@@ -2,16 +2,21 @@
 
 import type { ViewDef, TableDef, AnyColumnBuilder } from '../schema/definitions.js'
 import type { Database } from '../query/client.js'
-import type { BusinessObjectDef, BOConfig, ActionContext, CompositionDef, TypedBusinessObject } from './types.js'
+import type { BusinessObjectDef, BOConfig, ActionContext, AnyCompositionDef, TypedBusinessObject } from './types.js'
 import { executeAction } from './actions.js'
 
 function snakeToCamel(s: string): string {
   return s.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())
 }
 
-function normalizeComposition(value: CompositionDef | ViewDef | TableDef): CompositionDef {
+function normalizeComposition(value: AnyCompositionDef | ViewDef | TableDef): AnyCompositionDef {
+  // Link-table M2M composition — pass through as-is
+  if ('linkTable' in value) return value
+  // Plain composition with explicit config — pass through
   if ('parentKey' in value) return value
+  // Shorthand: a TableDef passed directly (legacy shape, parentKey inferred/empty)
   if ('columns' in value) return { table: value as TableDef, parentKey: '' }
+  // Shorthand: a ViewDef passed directly
   return { view: value as ViewDef, parentKey: '' }
 }
 
@@ -33,7 +38,7 @@ export function defineBO<
   root: R,
   config: Cfg = {} as Cfg,
 ): TypedBusinessObject<C, ResolveParam<C, Cfg>> {
-  const compositions: Record<string, CompositionDef> = {}
+  const compositions: Record<string, AnyCompositionDef> = {}
   if (config.compositions) {
     for (const [key, value] of Object.entries(config.compositions)) {
       compositions[key] = normalizeComposition(value)
@@ -83,7 +88,7 @@ export function defineBO<
   return impl as unknown as TypedBusinessObject<C, ResolveParam<C, Cfg>>
 }
 
-export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionContext, type CompositionDef, type TypedBusinessObject, type VirtualFieldMeta, type ProjectionDef, type ProjectionConfig } from './types.js'
+export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionContext, type CompositionDef, type AnyCompositionDef, type LinkCompositionDef, type BoTarget, type TypedBusinessObject, type VirtualFieldMeta, type ProjectionDef, type ProjectionConfig, isLinkComposition } from './types.js'
 export { enrichCompositions } from './enrich.js'
 export { enrichAssociations, type EnrichAssociationsOptions } from './enrich-associations.js'
 export { defineProjection, projectRow, projectionExposes } from './projection.js'

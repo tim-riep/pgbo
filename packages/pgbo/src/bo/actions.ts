@@ -59,17 +59,21 @@ export async function executeAction(
       const rows = await db._table.into(table).values(parentData).returning('*').execute()
       result = rows[0]
 
-      // Handle compositions
+      // Handle compositions on create. Link-table compositions (M2M) are
+      // read-only in this version — write support is a follow-up; if the caller
+      // passes link data we ignore it rather than fail.
       for (const [compName, compDef] of Object.entries(bo.compositions)) {
         const compData = data[compName]
         if (!Array.isArray(compData)) continue
+        if ('linkTable' in compDef) continue  // skip link compositions on write
 
-        const compTable = compDef.table ?? compDef.view?.source
+        const plain = compDef
+        const compTable = plain.table ?? plain.view?.source
         if (!compTable) continue
 
         const parentKeyValue = (result as Record<string, unknown>)[bo.paramField]
         for (const childRow of compData as Record<string, unknown>[]) {
-          const childData = { ...childRow, [compDef.parentKey]: parentKeyValue }
+          const childData = { ...childRow, [plain.parentKey]: parentKeyValue }
           await db._table.into(compTable).values(childData).execute()
         }
       }
