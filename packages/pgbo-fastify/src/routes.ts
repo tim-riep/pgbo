@@ -141,7 +141,10 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
   const bo = projection.bo
   const boMethods = bo as unknown as TypedBoMethods
   const viewDef = resolveView(config)
-  const prefix = config.prefix ?? bo.routePrefix ?? `/bo/${projection.name}`
+  // URL layout is locked to `/bo/{projection.name}` (issue #44). Versioning,
+  // tenant prefixes, etc. belong in Fastify's encapsulation layer
+  // (`app.register(routes, { prefix: '/v1' })`), not on each BO.
+  const prefix = `/bo/${projection.name}`
   const paramField = bo.paramField
   const tenantCol = config.tenantColumn ?? 'tenantId'
   const includeGlobal = config.includeGlobal ?? false
@@ -407,7 +410,8 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
  */
 export function registerViewRoute(app: FastifyInstance, db: Database, config: ViewRouteConfig): void {
   const viewDef = config.view
-  const prefix = config.prefix ?? `/view/${viewDef.name}`
+  // URL layout is locked to `/view/{view.name}` (issue #44).
+  const prefix = `/view/${viewDef.name}`
 
   // OpenAPI schema (issue #38)
   const swagger: SwaggerConfig = config.swagger ?? {}

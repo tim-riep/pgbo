@@ -18,8 +18,6 @@ export interface ProjectionRouteConfig {
   readonly projection: ProjectionDef
   /** The view to query (defaults to projection.bo.root if it's a ViewDef) */
   readonly view?: ViewDef
-  /** Route prefix override (defaults to projection.bo.routePrefix or `/bo/${projection.name}`) */
-  readonly prefix?: string
   /** Include global (tenant-less) rows alongside tenant-scoped rows */
   readonly includeGlobal?: boolean
   /** Tenant column name (default: 'tenantId') */
@@ -73,8 +71,6 @@ export interface FileResponse {
 export interface ViewRouteConfig {
   /** The view to expose */
   readonly view: ViewDef
-  /** Route prefix override (defaults to `/view/${view.name}`) */
-  readonly prefix?: string
   /** Extract context from request */
   readonly extractContext: (req: FastifyRequest) => RouteContext | Promise<RouteContext>
   /** OpenAPI / Swagger schema generation (issue #38). */

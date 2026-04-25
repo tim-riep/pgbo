@@ -68,7 +68,7 @@ registerProjection(app, db, {
 await app.listen({ port: 3000 })
 ```
 
-This produces, under `/bo/warehouse` (the default prefix):
+This produces, under the canonical `/bo/{projection.name}` layout:
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -79,7 +79,7 @@ This produces, under `/bo/warehouse` (the default prefix):
 | `DELETE` | `/bo/warehouse/:slug`         | Delete |
 | `GET`    | `/meta/warehouse`             | Frontend-consumable field metadata |
 
-The `:param` segment is driven by `bo.paramField`, not hardcoded to `id`.
+The `:param` segment is driven by `bo.paramField`, not hardcoded to `id`. The URL prefix is locked to `/bo/{projection.name}` (issue #44) — no per-BO or per-route override. For API versioning or tenant prefixes use Fastify's encapsulation: `app.register(routes, { prefix: '/v1' })`.
 
 ## `registerProjection`
 
@@ -91,8 +91,6 @@ interface ProjectionRouteConfig {
   readonly projection: ProjectionDef
   /** The view to query. Defaults to projection.bo.root if it's a ViewDef. */
   readonly view?: ViewDef
-  /** Route prefix override. Defaults to projection.bo.routePrefix or `/bo/${projection.name}`. */
-  readonly prefix?: string
   /** Include global (tenant-less) rows alongside tenant-scoped rows. */
   readonly includeGlobal?: boolean
   /** Tenant column name. Default: 'tenantId'. */

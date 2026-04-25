@@ -288,7 +288,6 @@ export function boMeta(
     readOnly: bo.isReadOnly,
     compositions,
     valueHelps,
-    routePrefix: bo.routePrefix,
     orderBy: bo.orderBy,
     orderDir: bo.orderDir,
     cacheTags: bo.cacheTags,

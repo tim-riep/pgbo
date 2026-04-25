@@ -47,12 +47,11 @@ const bo = defineBO(stockJournalTable, {
 
 ## List & Route Metadata
 
-BOs carry route-level metadata so consuming apps don't need per-BO config duplication:
+BOs carry list-level metadata so consuming apps don't need per-BO config duplication:
 
 ```typescript
 const areaBO = defineBO(areaTable, {
   paramField: 'id',
-  routePrefix: '/api/areas',
   orderBy: 'sortOrder',
   orderDir: 'asc',
   cacheTags: ['area', 'navigation'],
@@ -66,7 +65,6 @@ const areaBO = defineBO(areaTable, {
 })
 ```
 
-- `routePrefix` — default route path for the consuming framework
 - `orderBy` / `orderDir` — default sort for list queries
 - `cacheTags` — cache invalidation tags
 - `virtualFields` — fields populated by `transformItems`, merged into `boMeta()` output
@@ -502,20 +500,19 @@ const activeCustomer = defineProjection(customerBO, {
 import { registerProjection } from '@pgbo/fastify'
 
 registerProjection(app, db, {
-  projection: areaPublic,
+  projection: areaPublic,           // → routes under /bo/areaPublic
   view: areaView,
   extractContext: req => ({ app, db, locale: 'en' }),
 })
 
 registerProjection(app, db, {
-  projection: areaAdmin,
+  projection: areaAdmin,            // → routes under /bo/areaAdmin
   view: areaView,
-  prefix: '/api/admin/areas',
   extractContext: /* ... */,
 })
 ```
 
-Multiple projections over the same BO coexist — you can surface a read-only public API, a CRUD admin API, and a reporting projection side-by-side without duplicating the BO.
+URL layout is locked to `/bo/{projection.name}` (issue #44) — no per-projection prefix knob. Multiple projections over the same BO coexist by picking different `name`s. For API versioning or tenant prefixes, use Fastify's encapsulation: `app.register(routes, { prefix: '/v1' })`.
 
 ### Validation
 

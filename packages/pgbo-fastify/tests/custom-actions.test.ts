@@ -22,7 +22,7 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
 
   const roleBO = defineBO(roleTable, {
     paramField: 'id',
-    routePrefix: '/api/roles',
+    
     actions: {
       // Standard
       create: {},
@@ -148,7 +148,7 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
   it('defaults Content-Disposition to attachment when inline is false', async () => {
     const testBO = defineBO(roleTable, {
       paramField: 'id',
-      routePrefix: '/api/downloads',
+      
       actions: {
         download: {
           handler: () => ({
@@ -182,7 +182,7 @@ describe('Custom BO actions exposed as HTTP routes (issues #5 + #7)', () => {
   it('returns a 500 when the action throws', async () => {
     const throwingBO = defineBO(roleTable, {
       paramField: 'id',
-      routePrefix: '/api/broken',
+      
       actions: {
         broken: {
           handler: () => { throw new Error('boom') },
