@@ -52,13 +52,35 @@ export function defineBO<
   // Value helps must be views annotated with .vh() — surface a clear error instead
   // of letting Fastify fail at request time when it can't find key/display columns.
   const valueHelps = config.valueHelps ?? {}
+  const boName = config.name ?? snakeToCamel(root.name)
   for (const [vhName, vhView] of Object.entries(valueHelps)) {
     if (!vhView.vhAnnotation) {
-      const boName = config.name ?? snakeToCamel(root.name)
       throw new Error(
         `BO "${boName}": valueHelps["${vhName}"] points to view "${vhView.name}" which has no .vh({ key, display }) annotation. ` +
         `Mark it as a value help with .vh({ key: '…', display: '…' }) on the view.`,
       )
+    }
+  }
+
+  // Cross-check: every column-level `.valueHelp(vhView)` on the root must reference
+  // a vh view that's also registered in the BO's `valueHelps` (issue #35). Catches
+  // typos and missed wiring at definition time instead of at request time when the
+  // form tries to fetch a non-existent endpoint.
+  if ('selectedColumns' in root && root.selectedColumns) {
+    const registeredViews = new Set(Object.values(valueHelps))
+    for (const [colKey, entry] of Object.entries(root.selectedColumns)) {
+      const vh = (entry as { annotations?: { valueHelp?: ViewDef } }).annotations?.valueHelp
+      if (vh && !registeredViews.has(vh)) {
+        const known = Object.keys(valueHelps)
+        const suggestion = known.length > 0
+          ? ` Known value helps: ${known.map(k => `"${k}"`).join(', ')}.`
+          : ' No value helps registered on this BO.'
+        throw new Error(
+          `BO "${boName}": column "${colKey}" references value help view "${vh.name}" via .valueHelp(...), ` +
+          `but no entry in this BO's valueHelps points at that view.${suggestion} ` +
+          `Add it under valueHelps so the metadata-driven form can resolve the dropdown.`,
+        )
+      }
     }
   }
 

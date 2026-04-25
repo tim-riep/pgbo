@@ -21,9 +21,9 @@ import { isTranslatedRef } from '../schema/i18n.js'
 import { toSnakeCase } from '../schema/table.js'
 import { toCamelCase } from '../query/select.js'
 import { getI18nConfig } from '../schema/i18n.js'
-import type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig } from './types.js'
+import type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig, ValueHelpRef } from './types.js'
 
-export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig } from './types.js'
+export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig, ValueHelpRef } from './types.js'
 
 // --- Kind inference ---
 
@@ -77,6 +77,15 @@ function inferFilterMeta(kind: FieldKind, annotations: {
   }
 }
 
+/** Look up the ViewDef referenced by `.valueHelp(...)` on a column with the given output key. */
+function findColumnValueHelpView(source: ViewDef | TableDef, fieldKey: string): ViewDef | undefined {
+  if (!isViewDef(source)) return undefined
+  const cols = source.selectedColumns
+  if (!cols) return undefined
+  const entry = cols[fieldKey] as { annotations?: { valueHelp?: ViewDef } } | undefined
+  return entry?.annotations?.valueHelp
+}
+
 function buildFieldMeta(
   key: string,
   annotations: ColumnRef['annotations'],
@@ -91,6 +100,14 @@ function buildFieldMeta(
     ? inferFilterMeta(kind, annotations)
     : false
 
+  // Surface the column-to-vh binding (issue #35) so metadata-driven forms can
+  // render dropdowns automatically. `name` is set to the view name as a stand-in;
+  // boMeta() rewrites it to the BO's `valueHelps` key (the URL segment Fastify uses).
+  const vh = annotations.valueHelp
+  const valueHelp: ValueHelpRef | undefined = vh?.vhAnnotation
+    ? { name: vh.name, keyField: vh.vhAnnotation.key, displayField: vh.vhAnnotation.display }
+    : undefined
+
   return {
     key,
     kind,
@@ -99,6 +116,7 @@ function buildFieldMeta(
     immutable: annotations.immutable ?? false,
     searchable: annotations.searchable ?? false,
     filterable,
+    valueHelp,
     inList: annotations.inList ?? true,
     inForm: annotations.inForm ?? true,
     required: annotations.required ?? false,
@@ -151,7 +169,33 @@ export function boMeta(
 ): BOMeta {
   const base = viewMeta(bo.root)
 
-  const fields = [...base.fields]
+  // Build a lookup so per-field valueHelp refs can use the BO's `valueHelps` key
+  // (the URL segment Fastify routes use) instead of the underlying view name.
+  // Same map drives `filterable.endpoint` rewriting below.
+  const vhKeyByView = new Map<unknown, string>()
+  for (const [vhKey, vhView] of Object.entries(bo.valueHelps)) {
+    vhKeyByView.set(vhView, vhKey)
+  }
+
+  const fields = base.fields.map(f => {
+    let next = f
+    if (f.valueHelp) {
+      // viewMeta sets valueHelp.name = view name; rewrite to BO key when it matches
+      const annotatedView = findColumnValueHelpView(bo.root, f.key)
+      const boKey = annotatedView ? vhKeyByView.get(annotatedView) : undefined
+      if (boKey && boKey !== f.valueHelp.name) {
+        next = { ...next, valueHelp: { ...f.valueHelp, name: boKey } }
+      }
+    }
+    if (next.filterable && typeof next.filterable === 'object' && next.filterable.endpoint) {
+      const annotatedView = findColumnValueHelpView(bo.root, f.key)
+      const boKey = annotatedView ? vhKeyByView.get(annotatedView) : undefined
+      if (boKey && boKey !== next.filterable.endpoint) {
+        next = { ...next, filterable: { ...next.filterable, endpoint: boKey } }
+      }
+    }
+    return next
+  })
 
   // Inject translation fields
   if (config?.translations) {
@@ -221,9 +265,11 @@ export function boMeta(
     }
   })
 
-  // Build valueHelps from the BO's registered views (each is a ViewDef with .vh())
-  const valueHelps = Object.entries(bo.valueHelps).map(([, vhView]) => ({
-    name: vhView.name,
+  // Build valueHelps from the BO's registered views (each is a ViewDef with .vh()).
+  // `name` is the BO key — that's the URL segment Fastify routes use, and what
+  // FieldMeta.valueHelp.name and filterable.endpoint reference (issue #35).
+  const valueHelps = Object.entries(bo.valueHelps).map(([boKey, vhView]) => ({
+    name: boKey,
     fields: viewMeta(vhView).fields,
   }))
 

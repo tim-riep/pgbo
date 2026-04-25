@@ -10,6 +10,30 @@ export interface FilterMeta {
   readonly options?: readonly FilterOption[]
 }
 
+/**
+ * Reference from a field to a value-help endpoint (issue #35). Set when a column
+ * is annotated with `.valueHelp(vhView)` and the surrounding BO registers that
+ * view in `valueHelps`. Lets metadata-driven forms render the field as a dropdown
+ * without per-app wiring.
+ */
+export interface ValueHelpRef {
+  /**
+   * Key under `bo.valueHelps` — the URL segment Fastify uses for the route.
+   * Same value is used for the metadata's top-level `valueHelps[].name`.
+   */
+  readonly name: string
+  /** Column on the value-help view that holds the identifier (`.vh({ key })`). */
+  readonly keyField: string
+  /** Column on the value-help view that holds the human-readable label (`.vh({ display })`). */
+  readonly displayField: string
+  /**
+   * Full HTTP path. Populated by `@pgbo/fastify`'s projection-aware transform
+   * (`/bo/{projection.name}/valueHelp/{name}`); undefined when reading the raw
+   * `boMeta()` output without projection context.
+   */
+  readonly endpoint?: string
+}
+
 export interface FieldMeta {
   readonly key: string
   readonly kind: FieldKind
@@ -18,6 +42,7 @@ export interface FieldMeta {
   readonly immutable: boolean
   readonly searchable: boolean
   readonly filterable: false | FilterMeta
+  readonly valueHelp?: ValueHelpRef
   readonly inList: boolean
   readonly inForm: boolean
   readonly required: boolean

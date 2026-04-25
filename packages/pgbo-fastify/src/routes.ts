@@ -66,24 +66,35 @@ type PublicBoMeta = Omit<BOMeta, 'fields'> & { readonly fields: readonly PublicF
  * - label → labelKey with `${projectionName}.${key}` fallback
  * - hidden → inList/inForm: false
  * - restricts field list to the projection's column allowlist if set
+ * - resolves valueHelp / filterable.endpoint to absolute URLs (issue #35)
  */
 function transformProjectionMeta(projection: ProjectionDef, meta: BOMeta): PublicBoMeta {
   const allowed = projection.columns ? new Set(projection.columns) : undefined
+  const vhPrefix = `/bo/${projection.name}/valueHelp`
   const fields = meta.fields
     .filter(f => !allowed || allowed.has(f.key))
-    .map((f): PublicFieldMeta => ({
-      key: f.key,
-      kind: f.kind,
-      labelKey: f.label ?? `${projection.name}.${f.key}`,
-      hidden: f.hidden,
-      immutable: f.immutable,
-      searchable: f.searchable,
-      filterable: f.filterable,
-      inList: f.hidden ? false : f.inList,
-      inForm: f.hidden ? false : f.inForm,
-      required: f.required,
-      quick: f.quick,
-    }))
+    .map((f): PublicFieldMeta => {
+      const valueHelp = f.valueHelp
+        ? { ...f.valueHelp, endpoint: `${vhPrefix}/${f.valueHelp.name}` }
+        : undefined
+      const filterable = f.filterable && typeof f.filterable === 'object' && f.filterable.endpoint
+        ? { ...f.filterable, endpoint: `${vhPrefix}/${f.filterable.endpoint}` }
+        : f.filterable
+      return {
+        key: f.key,
+        kind: f.kind,
+        labelKey: f.label ?? `${projection.name}.${f.key}`,
+        hidden: f.hidden,
+        immutable: f.immutable,
+        searchable: f.searchable,
+        filterable,
+        valueHelp,
+        inList: f.hidden ? false : f.inList,
+        inForm: f.hidden ? false : f.inForm,
+        required: f.required,
+        quick: f.quick,
+      }
+    })
   return { ...meta, name: projection.name, fields }
 }
 

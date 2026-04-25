@@ -71,6 +71,7 @@ interface PublicFieldMeta {
   immutable: boolean                            // disable input in the form
   searchable: boolean                           // hits the list `?search=` param
   filterable: false | FilterMeta                // false, or config for the filter widget
+  valueHelp?: ValueHelpRef                      // dropdown source for forms (issue #35)
   inList: boolean                               // column visible in list view (false if hidden)
   inForm: boolean                               // field visible in form view (false if hidden)
   required: boolean
@@ -79,12 +80,58 @@ interface PublicFieldMeta {
 
 interface FilterMeta {
   type: 'text' | 'date' | 'select' | 'relation'
-  endpoint?: string                             // value-help URL for 'relation'/'select'
+  endpoint?: string                             // absolute value-help URL for 'relation'/'select'
   valueField?: string                           // column on the target that holds the id
   labelField?: string                           // column shown to the user
   options?: { value: string; label: string }[]  // static options for 'select'
 }
+
+interface ValueHelpRef {
+  name: string                                  // BO key (the URL segment)
+  endpoint: string                              // e.g. '/bo/product/valueHelp/uom'
+  keyField: string                              // from the vh view's .vh({ key })
+  displayField: string                          // from the vh view's .vh({ display })
+}
 ```
+
+### Column-to-value-help binding (issue #35)
+
+`col(...).valueHelp(vhView)` binds a column to a value-help view. When the BO registers the same view in `valueHelps`, metadata emits a `valueHelp` reference on the field, ready for a metadata-driven form to render the column as a dropdown without per-app wiring:
+
+```typescript
+const uomVh = view('uom_vh').from(uomTable)
+  .columns({ slug: col('slug'), name: col('name') })
+  .vh({ key: 'slug', display: 'name' })
+
+const productView = view('product_view').from(productTable).columns({
+  sku: col('sku').label('product.sku'),
+  uomSlug: col('uomSlug').label('product.uom').valueHelp(uomVh),
+})
+
+const productBO = defineBO(productView, {
+  paramField: 'id',
+  valueHelps: { uom: uomVh },        // key 'uom' is the URL segment
+})
+```
+
+`/meta/product` returns:
+
+```json
+{
+  "fields": [
+    { "key": "uomSlug", "kind": "relation",
+      "valueHelp": {
+        "name": "uom",
+        "endpoint": "/bo/product/valueHelp/uom",
+        "keyField": "slug",
+        "displayField": "name"
+      }
+    }
+  ]
+}
+```
+
+`defineBO()` validates that every column-level `.valueHelp(vhView)` references a view that's also registered under `valueHelps` — typos and missed wiring throw at definition time, not at request time when the form would otherwise hit a non-existent endpoint.
 
 ### `label` → `labelKey` — the i18n contract
 
