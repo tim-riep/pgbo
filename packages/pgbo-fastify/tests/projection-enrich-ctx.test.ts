@@ -76,7 +76,7 @@ describe('issue #20 — registerProjection forwards ctx to enrichCompositions', 
     registerProjection(app, testDb.db, {
       projection: areaProjection,
       view: areaView,
-      prefix: '/api/areas',
+      
       extractContext: () => ({ app, db: testDb.db, locale }),
     })
     return app
@@ -84,7 +84,7 @@ describe('issue #20 — registerProjection forwards ctx to enrichCompositions', 
 
   it('GET list resolves $locale from ctx — no 500', async () => {
     const app = mkApp('en')
-    const res = await app.inject({ method: 'GET', url: '/api/areas' })
+    const res = await app.inject({ method: 'GET', url: '/bo/area' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
     // merge: ['name'] lifts translation.name onto parent
@@ -95,7 +95,7 @@ describe('issue #20 — registerProjection forwards ctx to enrichCompositions', 
 
   it('different locale → different merged name', async () => {
     const app = mkApp('de')
-    const res = await app.inject({ method: 'GET', url: '/api/areas' })
+    const res = await app.inject({ method: 'GET', url: '/bo/area' })
     expect(res.statusCode).toBe(200)
     const byId = Object.fromEntries(res.json().items.map((i: { id: number; name: string }) => [i.id, i.name]))
     expect(byId).toEqual({ 1: 'Navigation DE', 2: 'Verwaltung' })
@@ -104,7 +104,7 @@ describe('issue #20 — registerProjection forwards ctx to enrichCompositions', 
 
   it('GET detail resolves $locale from ctx', async () => {
     const app = mkApp('de')
-    const res = await app.inject({ method: 'GET', url: '/api/areas/1' })
+    const res = await app.inject({ method: 'GET', url: '/bo/area/1' })
     expect(res.statusCode).toBe(200)
     expect(res.json().name).toBe('Navigation DE')
     await app.close()

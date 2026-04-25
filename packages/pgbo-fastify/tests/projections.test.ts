@@ -61,7 +61,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
       registerProjection(app, testDb.db, {
         projection: areaPublic,
         view: areaView,
-        prefix: '/api/public/areas',
+        
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
       return app
@@ -69,7 +69,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('read-only projection exposes GET list', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/public/areas' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaPublic' })
       expect(res.statusCode).toBe(200)
       expect(res.json().items).toHaveLength(3)
       await app.close()
@@ -77,7 +77,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('read-only projection exposes GET detail', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/public/areas/1' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaPublic/1' })
       expect(res.statusCode).toBe(200)
       expect(res.json().slug).toBe('nav')
       await app.close()
@@ -94,7 +94,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
     it('read-only projection does NOT expose POST create', async () => {
       const app = mkApp()
       const res = await app.inject({
-        method: 'POST', url: '/api/public/areas',
+        method: 'POST', url: '/bo/areaPublic',
         payload: { id: 99, slug: 'x', name: 'X' },
       })
       expect(res.statusCode).toBe(404)
@@ -104,7 +104,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
     it('read-only projection does NOT expose PUT update', async () => {
       const app = mkApp()
       const res = await app.inject({
-        method: 'PUT', url: '/api/public/areas/1', payload: { name: 'Hijacked' },
+        method: 'PUT', url: '/bo/areaPublic/1', payload: { name: 'Hijacked' },
       })
       expect(res.statusCode).toBe(404)
       await app.close()
@@ -112,7 +112,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('read-only projection does NOT expose DELETE', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'DELETE', url: '/api/public/areas/1' })
+      const res = await app.inject({ method: 'DELETE', url: '/bo/areaPublic/1' })
       expect(res.statusCode).toBe(404)
       await app.close()
     })
@@ -139,7 +139,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
       registerProjection(app, testDb.db, {
         projection: areaAdmin,
         view: areaView,
-        prefix: '/api/admin/areas',
+        
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
       return app
@@ -163,12 +163,12 @@ describe('Projections as HTTP surface (issue #15)', () => {
     it('standard CRUD is exposed when whitelisted', async () => {
       const app = mkApp()
       const post = await app.inject({
-        method: 'POST', url: '/api/admin/areas',
+        method: 'POST', url: '/bo/areaAdmin',
         payload: { id: 100, slug: 'new', name: 'New' },
       })
       expect(post.statusCode).toBe(201)
 
-      const del = await app.inject({ method: 'DELETE', url: '/api/admin/areas/100' })
+      const del = await app.inject({ method: 'DELETE', url: '/bo/areaAdmin/100' })
       expect(del.statusCode).toBe(200)
       await app.close()
     })
@@ -186,7 +186,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
       registerProjection(app, testDb.db, {
         projection: areaMobile,
         view: areaView,
-        prefix: '/api/mobile/areas',
+        
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
       return app
@@ -194,7 +194,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('list response omits non-projected columns', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/mobile/areas' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaMobile' })
       const body = res.json()
       expect(body.items[0]).toEqual({ id: 1, slug: 'nav', name: 'Navigation' })
       expect(body.items[0].internalNote).toBeUndefined()
@@ -203,7 +203,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('detail response omits non-projected columns', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/mobile/areas/1' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaMobile/1' })
       const body = res.json()
       expect(body).toEqual({ id: 1, slug: 'nav', name: 'Navigation' })
       expect(body.internalNote).toBeUndefined()
@@ -232,7 +232,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
       registerProjection(app, testDb.db, {
         projection: publishedOnly,
         view: areaView,
-        prefix: '/api/pub/areas',
+        
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
       return app
@@ -240,7 +240,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('list filters by root WHERE', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/pub/areas' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaPublished' })
       const slugs = res.json().items.map((i: { slug: string }) => i.slug).sort()
       expect(slugs).toEqual(['admin', 'nav'])  // 'draft' filtered out
       await app.close()
@@ -249,14 +249,14 @@ describe('Projections as HTTP surface (issue #15)', () => {
     it('detail 404s for out-of-scope rows', async () => {
       const app = mkApp()
       // draft (id 3) exists but is invisible through this projection
-      const res = await app.inject({ method: 'GET', url: '/api/pub/areas/3' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaPublished/3' })
       expect(res.statusCode).toBe(404)
       await app.close()
     })
 
     it('detail succeeds for in-scope rows', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'GET', url: '/api/pub/areas/1' })
+      const res = await app.inject({ method: 'GET', url: '/bo/areaPublished/1' })
       expect(res.statusCode).toBe(200)
       await app.close()
     })
@@ -264,7 +264,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
     it('update on out-of-scope row 404s', async () => {
       const app = mkApp()
       const res = await app.inject({
-        method: 'PUT', url: '/api/pub/areas/3', payload: { name: 'Hijacked' },
+        method: 'PUT', url: '/bo/areaPublished/3', payload: { name: 'Hijacked' },
       })
       expect(res.statusCode).toBe(404)
       await app.close()
@@ -272,7 +272,7 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
     it('delete on out-of-scope row 404s', async () => {
       const app = mkApp()
-      const res = await app.inject({ method: 'DELETE', url: '/api/pub/areas/3' })
+      const res = await app.inject({ method: 'DELETE', url: '/bo/areaPublished/3' })
       expect(res.statusCode).toBe(404)
       await app.close()
     })
@@ -289,20 +289,20 @@ describe('Projections as HTTP surface (issue #15)', () => {
 
       const app = Fastify()
       registerProjection(app, testDb.db, {
-        projection: areaRead, view: areaView, prefix: '/public/areas',
+        projection: areaRead, view: areaView, 
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
       registerProjection(app, testDb.db, {
-        projection: areaFull, view: areaView, prefix: '/admin/areas',
+        projection: areaFull, view: areaView, 
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
       // Read available on both
-      expect((await app.inject({ method: 'GET', url: '/public/areas' })).statusCode).toBe(200)
-      expect((await app.inject({ method: 'GET', url: '/admin/areas' })).statusCode).toBe(200)
+      expect((await app.inject({ method: 'GET', url: '/bo/areaRead' })).statusCode).toBe(200)
+      expect((await app.inject({ method: 'GET', url: '/bo/areaFull' })).statusCode).toBe(200)
 
       // Delete only on admin
-      expect((await app.inject({ method: 'DELETE', url: '/public/areas/1' })).statusCode).toBe(404)
+      expect((await app.inject({ method: 'DELETE', url: '/bo/areaRead/1' })).statusCode).toBe(404)
       // rebuildCache only on admin
       expect((await app.inject({ method: 'POST', url: '/bo/areaRead/rebuildCache' })).statusCode).toBe(404)
       expect((await app.inject({ method: 'POST', url: '/bo/areaFull/rebuildCache' })).statusCode).toBe(200)

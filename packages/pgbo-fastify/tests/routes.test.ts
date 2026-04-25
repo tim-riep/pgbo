@@ -22,7 +22,7 @@ const warehouseView = view('warehouse_view').from(warehouseTable)
 const warehouseBO = defineBO(warehouseTable, {
   paramField: 'slug',
   actions: { create: {}, update: {}, delete: {} },
-  routePrefix: '/api/warehouses',
+  
   orderBy: 'name',
 })
 
@@ -60,7 +60,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse' })
       const body = res.json()
       expect(res.statusCode).toBe(200)
       expect(body.items).toHaveLength(3)
@@ -78,7 +78,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses?limit=1&page=2' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse?limit=1&page=2' })
       const body = res.json()
       expect(body.items).toHaveLength(1)
       expect(body.page).toBe(2)
@@ -94,7 +94,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses/main' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse/main' })
       const body = res.json()
       expect(res.statusCode).toBe(200)
       expect(body.slug).toBe('main')
@@ -110,7 +110,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses/nonexistent' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse/nonexistent' })
       expect(res.statusCode).toBe(404)
       await app.close()
     })
@@ -140,7 +140,7 @@ describe('pgbo-fastify route factory', () => {
       })
 
       const res = await app.inject({
-        method: 'POST', url: '/api/warehouses',
+        method: 'POST', url: '/bo/warehouse',
         payload: { id: 10, slug: 'new-wh', name: 'New WH' },
       })
       expect(res.statusCode).toBe(201)
@@ -160,7 +160,7 @@ describe('pgbo-fastify route factory', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'DELETE', url: '/api/warehouses/temp' })
+      const res = await app.inject({ method: 'DELETE', url: '/bo/warehouse/temp' })
       expect(res.statusCode).toBe(200)
 
       const check = await testDb.raw("SELECT * FROM warehouse WHERE slug = 'temp'")

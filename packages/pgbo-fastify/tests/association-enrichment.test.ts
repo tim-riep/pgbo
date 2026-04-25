@@ -57,7 +57,7 @@ describe('Association enrichment through HTTP (issue #23)', () => {
 
   const pageBO = defineBO(pageTable, {
     paramField: 'id',
-    routePrefix: '/api/pages',
+    
     actions: { create: {} },
     associations: {
       area: {
@@ -103,7 +103,7 @@ describe('Association enrichment through HTTP (issue #23)', () => {
 
   it('GET list merges target.name as areaName at $locale', async () => {
     const app = mkApp('en')
-    const res = await app.inject({ method: 'GET', url: '/api/pages' })
+    const res = await app.inject({ method: 'GET', url: '/bo/page' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.items).toHaveLength(3)
@@ -114,7 +114,7 @@ describe('Association enrichment through HTTP (issue #23)', () => {
 
   it('GET list resolves different locale through target compositions', async () => {
     const app = mkApp('de')
-    const res = await app.inject({ method: 'GET', url: '/api/pages' })
+    const res = await app.inject({ method: 'GET', url: '/bo/page' })
     const names = res.json().items.map((i: { areaName: string }) => i.areaName)
     expect(names).toEqual(['Navigation DE', 'Navigation DE', 'Verwaltung'])
     await app.close()
@@ -122,7 +122,7 @@ describe('Association enrichment through HTTP (issue #23)', () => {
 
   it('GET detail enriches a single row too', async () => {
     const app = mkApp('en')
-    const res = await app.inject({ method: 'GET', url: '/api/pages/1' })
+    const res = await app.inject({ method: 'GET', url: '/bo/page/1' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({ id: 1, slug: 'home', areaName: 'Navigation' })
     await app.close()

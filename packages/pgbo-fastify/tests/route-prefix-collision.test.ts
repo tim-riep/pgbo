@@ -1,6 +1,7 @@
 // Regression test for issue #24:
-// When a BO/projection has no explicit routePrefix, registerProjection must not
-// crash Fastify at boot with "Method 'GET' already declared for route '/bo/X'".
+// `/meta/{name}` lives in its own namespace (not `/bo/{name}/meta`) so it can't
+// collide with the canonical `/bo/{projection.name}` list route under any name
+// (issue #24 + #44 — URL layout is now locked to that pattern, no overrides).
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
@@ -22,10 +23,9 @@ const thingTable = table('thing', {
 
 const thingView = view('thing_view').from(thingTable)
 
-describe('issue #24 — default routePrefix does not collide with metadata route', () => {
+describe('issue #24 — canonical /bo/{name} does not collide with /meta/{name}', () => {
   let testDb: TestDatabase
 
-  // A BO WITHOUT routePrefix — the default fallback triggered the bug
   const thingBO = defineBO(thingTable, {
     paramField: 'id',
     actions: { create: {}, update: {}, delete: {} },

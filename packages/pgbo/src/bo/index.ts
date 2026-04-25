@@ -93,7 +93,6 @@ export function defineBO<
     associations,
     valueHelps,
     isReadOnly: !config.actions || Object.keys(config.actions).length === 0,
-    routePrefix: config.routePrefix,
     orderBy: config.orderBy,
     orderDir: config.orderDir,
     cacheTags: config.cacheTags,

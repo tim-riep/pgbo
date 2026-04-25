@@ -76,7 +76,6 @@ export interface BOMeta extends ViewMeta {
   readonly readOnly: boolean
   readonly compositions: readonly CompositionMeta[]
   readonly valueHelps: readonly ValueHelpMeta[]
-  readonly routePrefix?: string
   readonly orderBy?: string
   readonly orderDir?: 'asc' | 'desc'
   readonly cacheTags?: readonly string[]

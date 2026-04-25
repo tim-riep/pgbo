@@ -14,32 +14,28 @@ const areaTable = table('area', {
 })
 
 describe('BOConfig list/search/filter metadata (issue 021)', () => {
-  it('carries routePrefix, orderBy, orderDir, cacheTags', () => {
+  it('carries orderBy, orderDir, cacheTags', () => {
     const bo = defineBO(areaTable, {
       paramField: 'id',
-      routePrefix: '/api/areas',
       orderBy: 'sortOrder',
       orderDir: 'asc',
       cacheTags: ['area', 'navigation'],
     })
 
-    expect(bo.routePrefix).toBe('/api/areas')
     expect(bo.orderBy).toBe('sortOrder')
     expect(bo.orderDir).toBe('asc')
     expect(bo.cacheTags).toEqual(['area', 'navigation'])
   })
 
-  it('boMeta() includes route metadata', () => {
+  it('boMeta() includes orderBy/orderDir/cacheTags (URL prefix is locked, issue #44)', () => {
     const bo = defineBO(areaTable, {
       paramField: 'id',
-      routePrefix: '/api/areas',
       orderBy: 'sortOrder',
       orderDir: 'desc',
       cacheTags: ['area'],
     })
 
     const meta = boMeta(bo)
-    expect(meta.routePrefix).toBe('/api/areas')
     expect(meta.orderBy).toBe('sortOrder')
     expect(meta.orderDir).toBe('desc')
     expect(meta.cacheTags).toEqual(['area'])
@@ -91,7 +87,6 @@ describe('BOConfig list/search/filter metadata (issue 021)', () => {
 
   it('optional fields default to undefined', () => {
     const bo = defineBO(areaTable, { paramField: 'id' })
-    expect(bo.routePrefix).toBeUndefined()
     expect(bo.orderBy).toBeUndefined()
     expect(bo.cacheTags).toBeUndefined()
     expect(bo.virtualFields).toBeUndefined()

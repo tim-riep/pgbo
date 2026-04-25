@@ -57,7 +57,6 @@ interface PublicBoMeta {
   associations: AssociationMeta[]               // foreign-key navigations
   compositions: CompositionMeta[]               // nested children
   valueHelps: ValueHelpMeta[]                   // dropdown sources
-  routePrefix?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'
   cacheTags?: string[]
@@ -294,7 +293,7 @@ const meta = boMeta(warehouseBO, {
   translations: { table: warehouseTranslationTable, parentKey: 'warehouseId', fields: ['name'] },
 })
 // Extends viewMeta with:
-//   paramField, readOnly, compositions, valueHelps, routePrefix, orderBy, orderDir, cacheTags
+//   paramField, readOnly, compositions, valueHelps, orderBy, orderDir, cacheTags
 //   + injected translation fields (kind: 'translation', searchable: true, filterable: { type: 'text' })
 //   + injected virtual fields (from bo.virtualFields)
 ```

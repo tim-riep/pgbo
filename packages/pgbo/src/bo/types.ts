@@ -122,7 +122,6 @@ export interface BusinessObjectDef {
   readonly associations: Readonly<Record<string, AssociationDef>>
   readonly valueHelps: Readonly<Record<string, ViewDef>>
   readonly isReadOnly: boolean
-  readonly routePrefix?: string
   readonly orderBy?: string
   readonly orderDir?: 'asc' | 'desc'
   readonly cacheTags?: readonly string[]
@@ -163,7 +162,6 @@ export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<st
   compositions?: Record<string, AnyCompositionDef | ViewDef | TableDef>
   associations?: Record<string, AssociationDef>
   valueHelps?: Record<string, ViewDef>
-  routePrefix?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'
   cacheTags?: string[]

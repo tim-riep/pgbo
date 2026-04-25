@@ -31,7 +31,7 @@ const warehouseVH = view('warehouse_vh').from(warehouseTable)
 const warehouseBO = defineBO(warehouseTable, {
   paramField: 'slug',
   actions: { create: {}, update: {}, delete: {} },
-  routePrefix: '/api/warehouses',
+  
   valueHelps: { warehouse: warehouseVH },
 })
 
@@ -72,7 +72,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses?search=Main' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse?search=Main' })
       const body = res.json()
       expect(body.items).toHaveLength(1)
       expect(body.items[0].slug).toBe('main')
@@ -87,7 +87,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses?search=return' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse?search=return' })
       const body = res.json()
       expect(body.items).toHaveLength(1)
       expect(body.items[0].slug).toBe('returns')
@@ -144,14 +144,14 @@ describe('pgbo-fastify — issue 026 features', () => {
       })
 
       await app.inject({
-        method: 'POST', url: '/api/warehouses',
+        method: 'POST', url: '/bo/warehouse',
         payload: { id: 99, slug: 'temp', name: 'Temp' },
       })
       await app.inject({
-        method: 'PUT', url: '/api/warehouses/temp',
+        method: 'PUT', url: '/bo/warehouse/temp',
         payload: { name: 'Temp Renamed' },
       })
-      await app.inject({ method: 'DELETE', url: '/api/warehouses/temp' })
+      await app.inject({ method: 'DELETE', url: '/bo/warehouse/temp' })
 
       expect(calls.map(c => c.action)).toEqual(['create', 'update', 'delete'])
       await app.close()
@@ -168,7 +168,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse' })
       const body = res.json()
       const global = body.items.find((i: any) => i.slug === 'global-wh')
       const main = body.items.find((i: any) => i.slug === 'main')
@@ -185,7 +185,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'GET', url: '/api/warehouses' })
+      const res = await app.inject({ method: 'GET', url: '/bo/warehouse' })
       const body = res.json()
       expect(body.items[0].global).toBeUndefined()
       await app.close()
@@ -201,7 +201,7 @@ describe('pgbo-fastify — issue 026 features', () => {
       })
 
       const res = await app.inject({
-        method: 'PUT', url: '/api/warehouses/global-wh',
+        method: 'PUT', url: '/bo/warehouse/global-wh',
         payload: { name: 'Hijacked' },
       })
       expect(res.statusCode).toBe(403)
@@ -217,7 +217,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
       })
 
-      const res = await app.inject({ method: 'DELETE', url: '/api/warehouses/global-wh' })
+      const res = await app.inject({ method: 'DELETE', url: '/bo/warehouse/global-wh' })
       expect(res.statusCode).toBe(403)
       await app.close()
     })
@@ -233,7 +233,7 @@ describe('pgbo-fastify — issue 026 features', () => {
         extractContext: () => ({ app, db: testDb.db, tenantId: 't1', locale: 'en' }),
       })
 
-      const delRes = await app.inject({ method: 'DELETE', url: '/api/warehouses/temp-tenant' })
+      const delRes = await app.inject({ method: 'DELETE', url: '/bo/warehouse/temp-tenant' })
       expect(delRes.statusCode).toBe(200)
       await app.close()
     })
