@@ -1,5 +1,121 @@
 # @pgbo/fastify
 
+## 2.1.0
+
+### Minor Changes
+
+- a9030b0: OpenAPI / Swagger schema generation for every auto-registered route (closes #38).
+
+  `@pgbo/fastify` now attaches a Fastify `schema` block to every route it registers — `@fastify/swagger` picks them up automatically and the generated `/docs` UI shows every reachable endpoint with the right shapes, no per-route boilerplate.
+
+  ### What gets emitted per route
+
+  | Route                             | tags                  | summary                  | body / response                                                                                    |
+  | --------------------------------- | --------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
+  | `GET {prefix}` (list)             | `[name]`              | `List {name}`            | querystring: page/limit/search/sort/order/locale/fields. Response: `{ items, total, page, limit }` |
+  | `GET {prefix}/:param` (detail)    | `[name]`              | `Get {name}`             | params: `{ param: <PK type> }`. Response: row schema                                               |
+  | `POST {prefix}`                   | `[name]`              | `Create {name}`          | body: required + writable fields                                                                   |
+  | `PUT {prefix}/:param`             | `[name]`              | `Update {name}`          | body: writable fields, all optional                                                                |
+  | `DELETE {prefix}/:param`          | `[name]`              | `Delete {name}`          | params + row response                                                                              |
+  | `GET /meta/{name}`                | `[name, 'meta']`      | `Metadata for {name}`    | response: `BOMeta` shape                                                                           |
+  | `GET /bo/{name}/valueHelp/{vh}`   | `[name, 'valueHelp']` | `Value help: {vh}`       | list params + paginated rows                                                                       |
+  | `POST /bo/{name}/{action}`        | `[name, 'action']`    | from `ActionDef.summary` | body from `ActionDef.inputSchema` (when set)                                                       |
+  | View routes (`registerViewRoute`) | `[view.name, 'view']` | `View: {name}`           | list params + paginated rows                                                                       |
+
+  ### New API surface
+
+  - **`ActionDef.inputSchema`** — JSON Schema describing the action's request body. Used as the route `body` schema. Skip it and the route accepts any object (Fastify doesn't validate).
+  - **`ActionDef.summary` / `ActionDef.description`** — propagate into the OpenAPI spec. Use these when the description belongs with the BO (reusable across projections) rather than the per-projection `swagger.descriptions`.
+  - **`ProjectionRouteConfig.swagger`** + **`ViewRouteConfig.swagger`** — `{ enabled?, tag?, descriptions?, securityScheme? }`. Defaults are sensible (on, with `projection.name` as tag, `bearerAuth` security).
+  - **Auth integration** — when the projection's view has `.restrict()` (and not `.noAuth()`), routes get `security: [{ bearerAuth: [] }]`. Override the scheme name with `swagger.securityScheme: 'apiKey'`.
+
+  ### Field type → JSON Schema mapping
+
+  | `FieldMeta.kind`             | JSON Schema                               |
+  | ---------------------------- | ----------------------------------------- |
+  | `text` / `slug` / `relation` | `{ type: 'string' }`                      |
+  | `number`                     | `{ type: 'number' }`                      |
+  | `boolean`                    | `{ type: 'boolean' }`                     |
+  | `date`                       | `{ type: 'string', format: 'date-time' }` |
+  | `translation`                | `{ type: 'string', nullable: true }`      |
+
+  All row schemas use `additionalProperties: true` so dynamically-attached fields (the `global` flag, composition arrays, association merges, virtual fields) pass through unchanged.
+
+  ### Opt out
+
+  `swagger.enabled: false` falls back to the pre-#38 behaviour — routes registered without any schema block.
+
+- da6659e: Replace `ValueHelpViewDef` with a `.vh({ key, display })` annotation on regular views (closes #34). **Breaking change.**
+
+  `valueHelpView()` could only express `SELECT key, display FROM source` — the moment a value help needed a JOIN, a translated label, or a WHERE, it had to be hand-written in Fastify, bypassing the framework. The new shape: a value help is just a regular view with an annotation, so every view feature applies.
+
+  ### Before
+
+  ```ts
+  const warehouseVH = valueHelpView("warehouse_vh")
+    .from(warehouseTable)
+    .key("slug")
+    .display("name");
+  ```
+
+  ### After
+
+  ```ts
+  const warehouseVH = view("warehouse_vh")
+    .from(warehouseTable)
+    .columns({ slug: col("slug"), name: col("name") })
+    .vh({ key: "slug", display: "name" });
+  ```
+
+  Unlocks use cases that were impossible before — translated labels via `translatedJoin`, tenant-scoped value helps via `.where()`, auth-restricted value helps via `.restrict()`, etc.:
+
+  ```ts
+  const uomVh = view("uom_vh")
+    .from(unitOfMeasureTable)
+    .translatedJoin(unitOfMeasureTranslationTable, {
+      parentKey: "uomSlug",
+      localeColumn: "locale",
+      localeParam: "app.locale",
+      fallbackLocale: "en",
+      fields: ["name", "symbol"],
+    })
+    .vh({ key: "slug", display: "name" });
+  ```
+
+  ### Rules
+
+  - Value helps must stay flat: `.vh()` and `.associations()` are mutually exclusive — calling one after the other throws at builder time.
+  - `defineBO()` throws if any entry in `valueHelps` is a view without a `.vh()` annotation.
+  - `col(...).valueHelp(view)` throws if the view isn't `.vh()` annotated.
+
+  ### Removed
+
+  - `valueHelpView()` function
+  - `ValueHelpViewDef` type
+  - The raw-SQL fallback in `@pgbo/fastify`'s value-help route (it's always a view now → always goes through `paginateView`, so `search`/`limit`/`page` query params just work)
+
+  ### Migration
+
+  Replace each `valueHelpView(name).from(t).key(k).display(d)` with:
+
+  ```ts
+  view(name)
+    .from(t)
+    .columns({ [k]: col(k), [d]: col(d) })
+    .vh({ key: k, display: d });
+  ```
+
+  ### Migration/diff
+
+  No change to `SchemaDefinitions.bos` — migrate still walks BO `valueHelps` and emits `CREATE VIEW`. Additionally, if a vh view is registered directly in `views: []`, migrate dedupes it against the `bos` walk so you don't get two identical CREATE VIEW statements.
+
+### Patch Changes
+
+- Updated dependencies [ff180b9]
+- Updated dependencies [a9030b0]
+- Updated dependencies [da6659e]
+  - @pgbo/core@0.6.0
+
 ## 2.0.1
 
 ### Patch Changes
