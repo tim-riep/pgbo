@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic HTTP client for pgbo — URL composition, typed fetch, metadata cache",
   "type": "module",
   "main": "dist/index.js",
@@ -50,7 +50,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@pgbo/core": "0.6.0"
+    "@pgbo/core": "1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
