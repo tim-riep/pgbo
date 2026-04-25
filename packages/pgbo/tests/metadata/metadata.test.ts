@@ -86,6 +86,7 @@ describe('Metadata: viewMeta (R1)', () => {
     const createdField = meta.fields.find(f => f.key === 'createdAt')!
     expect(createdField.filterable).toEqual({ type: 'date' })
 
+    // viewMeta has no BO context → endpoint name falls back to the view name
     const whField = meta.fields.find(f => f.key === 'warehouseSlug')!
     expect(whField.filterable).toEqual({
       type: 'relation',
@@ -94,6 +95,23 @@ describe('Metadata: viewMeta (R1)', () => {
       labelField: 'name',
     })
     expect(whField.quick).toBe(true)
+  })
+
+  it('surfaces FieldMeta.valueHelp for columns annotated with .valueHelp(vhView) (issue #35)', () => {
+    const meta = viewMeta(areaView)
+    const whField = meta.fields.find(f => f.key === 'warehouseSlug')!
+    expect(whField.valueHelp).toEqual({
+      // viewMeta has no BO context → name falls back to view name; boMeta rewrites to BO key
+      name: 'warehouse_vh',
+      keyField: 'slug',
+      displayField: 'name',
+    })
+  })
+
+  it('FieldMeta.valueHelp is undefined for columns without .valueHelp()', () => {
+    const meta = viewMeta(areaView)
+    expect(meta.fields.find(f => f.key === 'slug')!.valueHelp).toBeUndefined()
+    expect(meta.fields.find(f => f.key === 'sortOrder')!.valueHelp).toBeUndefined()
   })
 
   it('handles translated columns as kind: translation', () => {
@@ -146,6 +164,74 @@ describe('Metadata: boMeta (R2)', () => {
     const readOnlyBO = defineBO(areaTable, {})
     const meta = boMeta(readOnlyBO)
     expect(meta.readOnly).toBe(true)
+  })
+
+  it('rewrites field.valueHelp.name + filterable.endpoint to the BO key (issue #35)', () => {
+    const areaBO = defineBO(areaView, {
+      paramField: 'id',
+      // BO registers the same vh view under key "warehouse" (the URL segment)
+      valueHelps: { warehouse: warehouseVH },
+    })
+    const meta = boMeta(areaBO)
+
+    const wh = meta.fields.find(f => f.key === 'warehouseSlug')!
+    // Before boMeta: viewMeta emitted `warehouse_vh` (view name) — boMeta rewrites both
+    expect(wh.valueHelp).toEqual({
+      name: 'warehouse',           // BO key, matches /bo/.../valueHelp/warehouse
+      keyField: 'slug',
+      displayField: 'name',
+    })
+    expect(wh.filterable).toEqual({
+      type: 'relation',
+      endpoint: 'warehouse',
+      valueField: 'slug',
+      labelField: 'name',
+    })
+
+    // valueHelps top-level entry also uses the BO key
+    expect(meta.valueHelps.find(v => v.name === 'warehouse')).toBeDefined()
+  })
+})
+
+describe('defineBO column-to-vh validation (issue #35)', () => {
+  it('throws when a column references a vh view that is not registered on the BO', () => {
+    const someVh = view('some_vh').from(areaTable)
+      .columns({ slug: col('slug'), name: col('name') })
+      .vh({ key: 'slug', display: 'name' })
+    const otherVh = view('other_vh').from(areaTable)
+      .columns({ slug: col('slug'), name: col('name') })
+      .vh({ key: 'slug', display: 'name' })
+
+    const v = view('bad_view').from(areaTable).columns({
+      id: col('id'),
+      // .valueHelp(someVh) — but the BO only registers `otherVh` under `other`
+      target: col('slug').valueHelp(someVh),
+    })
+
+    expect(() =>
+      defineBO(v, { paramField: 'id', valueHelps: { other: otherVh } }),
+    ).toThrow(/references value help view "some_vh".*Known value helps: "other"/)
+  })
+
+  it('throws with no-value-helps suggestion when the BO has none registered', () => {
+    const someVh = view('some_vh').from(areaTable)
+      .columns({ slug: col('slug'), name: col('name') })
+      .vh({ key: 'slug', display: 'name' })
+    const v = view('bad_view').from(areaTable).columns({
+      id: col('id'),
+      target: col('slug').valueHelp(someVh),
+    })
+    expect(() => defineBO(v, { paramField: 'id' })).toThrow(/No value helps registered on this BO/)
+  })
+
+  it('passes when every column-level vh is also in valueHelps', () => {
+    const v = view('ok_view').from(areaTable).columns({
+      id: col('id'),
+      warehouseSlug: col('slug').valueHelp(warehouseVH),
+    })
+    expect(() =>
+      defineBO(v, { paramField: 'id', valueHelps: { warehouse: warehouseVH } }),
+    ).not.toThrow()
   })
 })
 
