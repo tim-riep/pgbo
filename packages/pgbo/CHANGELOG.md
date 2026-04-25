@@ -1,5 +1,122 @@
 # @pgbo/core
 
+## 1.0.0
+
+### Major Changes
+
+- 61a6bb0: Lock URL conventions in `@pgbo/fastify` — no manual route prefix overrides (closes #44). **Breaking change.**
+
+  Every projection's HTTP surface now lives at exactly one URL pattern derived from the projection name, with no per-BO or per-route knob to override it:
+
+  ```
+  GET    /bo/{projection}                     list
+  GET    /bo/{projection}/{paramValue}        detail
+  POST   /bo/{projection}                     create
+  PUT    /bo/{projection}/{paramValue}        update
+  DELETE /bo/{projection}/{paramValue}        delete
+  GET    /meta/{projection}                   metadata
+  GET    /bo/{projection}/valueHelp/{vh}      value help
+  POST   /bo/{projection}/{action}            custom action
+  GET    /view/{view}                         view route
+  GET    /view/{view}/meta                    view metadata
+  ```
+
+  ### Removed
+
+  - `BOConfig.routePrefix` and `BusinessObjectDef.routePrefix`
+  - `ProjectionRouteConfig.prefix`
+  - `ViewRouteConfig.prefix`
+  - `BOMeta.routePrefix`
+
+  ### Why
+
+  - **Frontend simplicity** — with only the projection name in hand the UI can build any URL. No catalog lookup needed for the URL part.
+  - **Refactor safety** — renaming a projection rewrites every URL automatically; the frontend can't lag behind.
+  - **Multi-tenant routing stays in middleware** — API versioning, tenant prefixes, etc. belong in Fastify's encapsulation layer (`app.register(routes, { prefix: '/v1' })`), not on each BO.
+
+  ### Migration
+
+  Replace per-BO / per-projection prefix configs with the canonical layout. URLs the frontend used to call:
+
+  ```
+  /api/warehouses           → /bo/warehouse
+  /api/admin/areas          → /bo/areaAdmin   (rename projection 'area' → 'areaAdmin')
+  /api/public/areas         → /bo/areaPublic
+  ```
+
+  Two projections over the same BO that previously shared a prefix must now pick distinct projection names. For tenant or version prefixes, wrap `registerProjection` calls in a Fastify plugin and use Fastify's `prefix` at registration time:
+
+  ```ts
+  app.register(async (api) => {
+    registerProjection(api, db, { projection: warehouseProjection, ... })
+  }, { prefix: '/v1' })
+  // → /v1/bo/warehouse, /v1/meta/warehouse, etc.
+  ```
+
+### Minor Changes
+
+- 0ddf3fd: Auto-wrap Fastify routes with `db.withContext` when sessionParams are configured (closes #42).
+
+  Views with `.translatedJoin()` rely on `current_setting('app.locale', true)` to filter by locale. Until now, hitting one through `registerProjection` always returned the fallback locale because the route never called `db.withContext` to emit the per-request `SET LOCAL`. Now every read handler is wrapped automatically when `sessionParams` is configured:
+
+  - `GET {prefix}` (list), `GET {prefix}/:param` (detail), value-help routes, and `registerViewRoute` reads — wrapped
+  - `PUT` / `DELETE` — the projection-visibility pre-fetch is wrapped (so projection scope sees the locale); the actual write runs unwrapped
+  - `POST` / custom actions — unwrapped (writes don't depend on `current_setting`; locale-aware custom actions call `db.withContext` inside the handler)
+
+  When no `sessionParams` are configured, the wrap is a no-op — apps without them don't pay an extra transaction per request.
+
+  ### New API
+
+  - `Database.hasSessionParams: boolean` — true when `DatabaseConfig.sessionParams` was set with at least one resolver. The Fastify adapter reads this to decide whether to wrap.
+
+  ### Internal type widening (compatible)
+
+  `paginateView`, `enrichCompositions`, `enrichAssociations`, and the new `DbOrTx` exported from `@pgbo/fastify` accept `Database | TransactionClient`. Existing consumers passing `Database` still work — only callers that need to receive a scoped tx benefit from the widening.
+
+- d8ec492: New package `@pgbo/client` — framework-agnostic HTTP client (closes #46).
+
+  Before, every frontend that talked to a `@pgbo/fastify` server re-implemented the same plumbing: URL builders, pagination unwrap, metadata cache, auth refresh, locale handling. That logic now lives in one place, owned and tested by the framework.
+
+  ```typescript
+  import { createClient } from "@pgbo/client";
+
+  const pgbo = createClient({
+    baseUrl: "http://localhost:3000",
+    locale: () => i18n.language,
+    getAuthHeader: () => `Bearer ${token}`,
+    refreshAuth: async () => `Bearer ${await refresh()}`,
+  });
+
+  await pgbo.list("warehouse", { search: "main" });
+  await pgbo.detail("warehouse", "main");
+  await pgbo.create("warehouse", { name: "X" });
+  await pgbo.update("warehouse", "main", { name: "Renamed" });
+  await pgbo.action<Blob>("doc", "pdf", { id: 1 }, { responseType: "blob" });
+
+  const meta = await pgbo.meta("warehouse"); // cached after first call
+  const uoms = await pgbo.valueHelp("product", "uom"); // unwrapped — already an array
+  ```
+
+  ### What's in the box
+
+  - `createClient(config)` — full client with `meta`, `list`, `detail`, `create`, `update`, `delete`, `action`, `valueHelp`, `valueHelpPaged`, `view`, `viewPaged`, `viewMeta`, `invalidateMeta`
+  - URL builders (`urlForProjection`, `urlForDetail`, `urlForAction`, `urlForValueHelp`, `urlForMeta`, `urlForView`, `urlForViewMeta`) + `buildQueryString`
+  - Re-exported metadata/query types (`FieldMeta`, `BOMeta`, `ValueHelpRef`, `ListParams`, `PaginatedResult`, …) so frontends don't import the server package
+  - `PublicBoMeta` / `PublicFieldMeta` / `PublicValueHelpRef` — typed response shapes after `@pgbo/fastify`'s `/meta` transform (labelKey populated, endpoints resolved to absolute URLs)
+  - `PgboClientError` — thrown on non-2xx, with `status`, `url`, and parsed `body`
+  - 401 retry once via `refreshAuth` callback
+  - Per-projection metadata cache with `invalidateMeta(name?)` to bust
+
+  ### What's not in the box
+
+  - Framework hooks (React / Vue / Svelte) — separate packages on top
+  - UI components — app concern
+  - Code-generated types — build-step concern
+
+  ### Companion change in `@pgbo/core`
+
+  `@pgbo/core/metadata` now re-exports `AssociationMeta`, `CompositionMeta`, `ValueHelpMeta`, `FieldKind`, and `FilterOption` so `@pgbo/client` can re-export them cleanly.
+
 ## 0.6.0
 
 ### Minor Changes
