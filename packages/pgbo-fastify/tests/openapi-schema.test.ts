@@ -223,12 +223,14 @@ describe('OpenAPI schema generation (issue #38)', () => {
       // the registration completes — strict-no-schema verification is hard to
       // make portable across Fastify versions).
       const app = Fastify()
-      expect(() => registerProjection(app, {} as any, {
-        projection: productProjection,
-        view: productView,
-        extractContext: stubCtx(app),
-        swagger: { enabled: false },
-      })).not.toThrow()
+      expect(() => {
+        registerProjection(app, {} as any, {
+          projection: productProjection,
+          view: productView,
+          extractContext: stubCtx(app),
+          swagger: { enabled: false },
+        })
+      }).not.toThrow()
       await app.close()
     })
 
