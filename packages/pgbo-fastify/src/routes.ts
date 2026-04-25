@@ -11,8 +11,14 @@ import type { WhereConditions } from '@pgbo/core/query'
 import { parseListParams } from '@pgbo/core/query'
 import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
 import { enrichCompositions, enrichAssociations, projectRow, projectionExposes, type ProjectionDef } from '@pgbo/core/bo'
-import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse } from './types.js'
+import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse, SwaggerConfig } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
+import {
+  rowSchema, listResponseSchema, listQuerystringSchema, paramSchema, paramFieldType,
+  createBodySchema, updateBodySchema, metaResponseSchema,
+  buildRouteSchema, viewHasAuth, actionBodySchema,
+  type JSONSchema,
+} from './openapi.js'
 
 interface TypedBoMethods {
   create: (db: Database, ctx: unknown, data: unknown) => Promise<unknown>
@@ -143,6 +149,26 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   const readExposed = projectionExposes(projection, 'read')
 
+  // --- OpenAPI schema generation (issue #38) ---
+  const swagger: SwaggerConfig = config.swagger ?? {}
+  const swaggerEnabled = swagger.enabled !== false  // default on
+  const tag = swagger.tag ?? projection.name
+  const baseTags = [tag] as const
+  const securityScheme = swagger.securityScheme ?? 'bearerAuth'
+  const security = viewHasAuth(projection) ? [{ [securityScheme]: [] }] : undefined
+  // boMeta() with the BO so schemas reflect the same fields as the /meta endpoint
+  const meta = boMeta(bo)
+  const paramTypeForRoute = paramFieldType(bo.root, paramField)
+  const desc = (key: string): string | undefined => swagger.descriptions?.[key]
+  const route404Schema: JSONSchema = { type: 'object', properties: { error: { type: 'string' } } }
+
+  /** Wrap an options-object so we only attach `schema` when swagger is enabled. */
+  function withSchema(parts: Parameters<typeof buildRouteSchema>[0]): Record<string, unknown> {
+    if (!swaggerEnabled) return {}
+    const schema = buildRouteSchema(security ? { ...parts, security } : parts)
+    return { schema }
+  }
+
   // Apply projection column narrowing to a row (or no-op when no columns are set)
   function narrow(row: Record<string, unknown>): Record<string, unknown> {
     return projection.columns ? projectRow(projection, row) : { ...row }
@@ -171,7 +197,18 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   // Read routes: GET list + GET detail + GET metadata
   if (readExposed) {
-    app.get(prefix, async (req: FastifyRequest) => {
+    const rowSchemaObj = rowSchema(meta)
+    const listSchema = listResponseSchema(rowSchemaObj)
+    const listQueryString = listQuerystringSchema(meta)
+    const paramSchemaObj = paramSchema(paramField, paramTypeForRoute)
+
+    app.get(prefix, withSchema({
+      tags: baseTags,
+      summary: `List ${tag}`,
+      description: desc('list'),
+      querystring: listQueryString,
+      response: { 200: listSchema },
+    }), async (req: FastifyRequest) => {
       const ctx = await config.extractContext(req)
       const params = parseListParams(req.query as Record<string, unknown>)
 
@@ -200,7 +237,13 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       return { items, total: result.total, page: result.page, limit: result.limit }
     })
 
-    app.get(`${prefix}/:param`, async (req: FastifyRequest, reply: FastifyReply) => {
+    app.get(`${prefix}/:param`, withSchema({
+      tags: baseTags,
+      summary: `Get ${tag}`,
+      description: desc('detail'),
+      params: paramSchemaObj,
+      response: { 200: rowSchemaObj, 404: route404Schema },
+    }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
       const paramValue = extractParam(req)
 
@@ -228,14 +271,27 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
     // Metadata — reflects the narrowed surface. Lives in a separate `/meta/` namespace
     // so it never collides with the list/detail route prefix (#24).
-    app.get(`/meta/${projection.name}`, () => transformProjectionMeta(projection, boMeta(bo)))
+    app.get(`/meta/${projection.name}`, withSchema({
+      tags: [tag, 'meta'],
+      summary: `Metadata for ${tag}`,
+      description: desc('meta'),
+      response: { 200: metaResponseSchema() },
+    }), () => transformProjectionMeta(projection, boMeta(bo)))
 
     // Value help endpoints — each vh is a ViewDef annotated with .vh(), so everything
     // a regular view supports (search, filters, pagination, restrict, translatedJoin)
     // just works.
     if (Object.keys(valueHelps).length > 0) {
       for (const [vhName, vh] of Object.entries(valueHelps)) {
-        app.get(`/bo/${projection.name}/valueHelp/${vhName}`, async (req: FastifyRequest) => {
+        const vhMeta = viewMeta(vh)
+        const vhRowSchema = rowSchema(vhMeta)
+        app.get(`/bo/${projection.name}/valueHelp/${vhName}`, withSchema({
+          tags: [tag, 'valueHelp'],
+          summary: `Value help: ${vhName}`,
+          description: desc(`valueHelp.${vhName}`),
+          querystring: listQuerystringSchema(vhMeta),
+          response: { 200: listResponseSchema(vhRowSchema) },
+        }), async (req: FastifyRequest) => {
           const ctx = await config.extractContext(req)
           const params = parseListParams(req.query as Record<string, unknown>)
           const result = await paginateView({ db, view: vh, params, userId: ctx.userId })
@@ -245,9 +301,19 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
     }
   }
 
+  const createBody = createBodySchema(meta)
+  const updateBody = updateBodySchema(meta)
+  const writeRowSchema = rowSchema(meta)
+
   // POST create
   if (projectionExposes(projection, 'create') && bo.actions.create) {
-    app.post(prefix, async (req: FastifyRequest, reply: FastifyReply) => {
+    app.post(prefix, withSchema({
+      tags: baseTags,
+      summary: `Create ${tag}`,
+      description: desc('create'),
+      body: createBody,
+      response: { 201: writeRowSchema },
+    }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
       const data = req.body as Record<string, unknown>
       const result = await boMethods.create(db, ctx, data) as Record<string, unknown>
@@ -259,7 +325,14 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   // PUT update
   if (projectionExposes(projection, 'update') && bo.actions.update) {
-    app.put(`${prefix}/:param`, async (req: FastifyRequest, reply: FastifyReply) => {
+    app.put(`${prefix}/:param`, withSchema({
+      tags: baseTags,
+      summary: `Update ${tag}`,
+      description: desc('update'),
+      params: paramSchema(paramField, paramTypeForRoute),
+      body: updateBody,
+      response: { 200: writeRowSchema, 404: route404Schema, 403: route404Schema },
+    }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
       const paramValue = extractParam(req)
 
@@ -280,7 +353,13 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   // DELETE
   if (projectionExposes(projection, 'delete') && bo.actions.delete) {
-    app.delete(`${prefix}/:param`, async (req: FastifyRequest, reply: FastifyReply) => {
+    app.delete(`${prefix}/:param`, withSchema({
+      tags: baseTags,
+      summary: `Delete ${tag}`,
+      description: desc('delete'),
+      params: paramSchema(paramField, paramTypeForRoute),
+      response: { 200: writeRowSchema, 404: route404Schema, 403: route404Schema },
+    }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
       const paramValue = extractParam(req)
 
@@ -298,10 +377,21 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
   }
 
   // Custom actions — only those explicitly whitelisted
-  for (const actionName of Object.keys(bo.actions)) {
+  for (const [actionName, action] of Object.entries(bo.actions)) {
     if (STANDARD_ACTIONS.has(actionName)) continue
     if (!projectionExposes(projection, actionName)) continue
-    app.post(`/bo/${projection.name}/${actionName}`, async (req: FastifyRequest, reply: FastifyReply) => {
+    // Only attach a body schema when the action declares an explicit `inputSchema`.
+    // Without it, Fastify's body validator would reject empty POSTs that the
+    // existing handlers happily accept (they read `req.body ?? {}`).
+    app.post(`/bo/${projection.name}/${actionName}`, withSchema({
+      tags: [tag, 'action'],
+      summary: action.summary ?? `Action: ${actionName}`,
+      description: action.description ?? desc(actionName),
+      ...(action.inputSchema && { body: actionBodySchema(action) }),
+      // Custom actions can return JSON, null/undefined (→204), or a FileResponse
+      // (→binary). We can't pin the response shape down here without a contract;
+      // the action's `description` should mention which form it returns.
+    }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
       const data = (req.body as Record<string, unknown> | undefined) ?? {}
       const result = await boMethods.execute(db, actionName, ctx, data)
@@ -319,7 +409,31 @@ export function registerViewRoute(app: FastifyInstance, db: Database, config: Vi
   const viewDef = config.view
   const prefix = config.prefix ?? `/view/${viewDef.name}`
 
-  app.get(prefix, async (req: FastifyRequest) => {
+  // OpenAPI schema (issue #38)
+  const swagger: SwaggerConfig = config.swagger ?? {}
+  const swaggerEnabled = swagger.enabled !== false
+  const tag = swagger.tag ?? viewDef.name
+  const meta = viewMeta(viewDef)
+  const rowSchemaObj = rowSchema(meta)
+  const listOpts = swaggerEnabled
+    ? { schema: buildRouteSchema({
+        tags: [tag, 'view'],
+        summary: `View: ${tag}`,
+        description: swagger.descriptions?.list,
+        querystring: listQuerystringSchema(meta),
+        response: { 200: listResponseSchema(rowSchemaObj) },
+      }) }
+    : {}
+  const metaOpts = swaggerEnabled
+    ? { schema: buildRouteSchema({
+        tags: [tag, 'view', 'meta'],
+        summary: `Metadata for ${tag}`,
+        description: swagger.descriptions?.meta,
+        response: { 200: metaResponseSchema() },
+      }) }
+    : {}
+
+  app.get(prefix, listOpts, async (req: FastifyRequest) => {
     const ctx = await config.extractContext(req)
     const params = parseListParams(req.query as Record<string, unknown>)
 
@@ -331,5 +445,5 @@ export function registerViewRoute(app: FastifyInstance, db: Database, config: Vi
   })
 
   // GET metadata
-  app.get(`${prefix}/meta`, () => viewMeta(viewDef))
+  app.get(`${prefix}/meta`, metaOpts, () => viewMeta(viewDef))
 }

@@ -328,6 +328,113 @@ GET    /bo/warehouse/valueHelp/region      # value help
 
 The metadata endpoint lives under `/meta/` rather than `/bo/warehouse/meta` so it never collides with a `:slug` that happens to be literally `meta` (issue #24).
 
+## OpenAPI / Swagger schema generation
+
+Every route registered by `registerProjection` and `registerViewRoute` carries a Fastify `schema` block built from the BO's metadata — `@fastify/swagger` picks them up automatically and the generated `/docs` UI shows every reachable endpoint with the right shapes, no per-route boilerplate.
+
+```typescript
+import Fastify from 'fastify'
+import swagger from '@fastify/swagger'
+import swaggerUi from '@fastify/swagger-ui'
+
+const app = Fastify()
+await app.register(swagger, {
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+    components: {
+      securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } },
+    },
+  },
+})
+await app.register(swaggerUi, { routePrefix: '/docs' })
+
+registerProjection(app, db, {
+  projection: warehouseProjection,
+  extractContext,
+  // schemas are on by default — no extra config needed
+})
+```
+
+### What gets emitted per route
+
+| Route | tags | summary | params | querystring | body | response |
+|---|---|---|---|---|---|---|
+| `GET {prefix}` (list) | `[name]` | `List {name}` | — | `parseListParams` keys (incl. `sort` enum from field keys) | — | `{ items: Field[], total, page, limit }` |
+| `GET {prefix}/:param` (detail) | `[name]` | `Get {name}` | `{ param: <PK type> }` | — | — | row schema |
+| `POST {prefix}` (create) | `[name]` | `Create {name}` | — | — | required + writable fields | row schema |
+| `PUT {prefix}/:param` (update) | `[name]` | `Update {name}` | `{ param }` | — | writable fields, all optional | row schema |
+| `DELETE {prefix}/:param` | `[name]` | `Delete {name}` | `{ param }` | — | — | row schema |
+| `GET /meta/{name}` | `[name, 'meta']` | `Metadata for {name}` | — | — | — | `BOMeta` shape |
+| `GET /bo/{name}/valueHelp/{vh}` | `[name, 'valueHelp']` | `Value help: {vh}` | — | list params | — | paginated row shape |
+| `POST /bo/{name}/{action}` | `[name, 'action']` | from `ActionDef.summary` or `Action: {name}` | — | — | from `ActionDef.inputSchema` (or skipped) | — |
+| View routes (`registerViewRoute`) | `[view.name, 'view']` | `View: {name}` | — | list params | — | paginated row shape |
+| View metadata (`registerViewRoute`) | `[view.name, 'view', 'meta']` | `Metadata for {name}` | — | — | — | `ViewMeta` shape |
+
+### Field type → JSON Schema mapping
+
+Driven by `FieldMeta.kind` (which itself comes from column annotations):
+
+| `kind` | JSON Schema |
+|---|---|
+| `text` / `slug` | `{ type: 'string' }` |
+| `number` | `{ type: 'number' }` |
+| `boolean` | `{ type: 'boolean' }` |
+| `date` | `{ type: 'string', format: 'date-time' }` |
+| `relation` | `{ type: 'string' }` |
+| `translation` | `{ type: 'string', nullable: true }` (locale may be missing) |
+
+All row schemas use `additionalProperties: true` so dynamically-attached fields — the `global` flag, composition arrays, association merges, virtual fields — flow through Fastify's response serializer without being stripped.
+
+### Auth security
+
+When the projection's view has any `.restrict()` (and isn't `.noAuth()`), every protected route gets `security: [{ bearerAuth: [] }]`. Override the scheme name with `swagger.securityScheme: 'apiKey'` if you've registered a different one with `@fastify/swagger`.
+
+### Custom action input schemas
+
+`ActionDef.inputSchema` documents the action's request body for the OpenAPI spec. Skip it and the route accepts any object; Fastify won't validate the body shape:
+
+```typescript
+const docBO = defineBO(docTable, {
+  paramField: 'id',
+  actions: {
+    archive: {
+      summary: 'Archive a document',
+      description: 'Marks the doc as archived. Idempotent.',
+      inputSchema: {
+        type: 'object',
+        properties: { reason: { type: 'string' } },
+        required: ['reason'],
+      },
+      handler: async (ctx, data) => archiveDoc(data.id, data.reason),
+    },
+  },
+})
+```
+
+`summary` and `description` on the `ActionDef` propagate straight into the OpenAPI route. Use them rather than `swagger.descriptions[actionName]` when the description belongs with the BO definition (it's reusable across projections).
+
+### Customising
+
+```typescript
+registerProjection(app, db, {
+  projection: warehouseProjection,
+  extractContext,
+  swagger: {
+    enabled: true,                           // default; set false to skip schemas entirely
+    tag: 'Warehouses',                       // override the auto tag (default: projection.name)
+    securityScheme: 'apiKey',                // default: 'bearerAuth'
+    descriptions: {
+      list: 'Returns warehouses for the current tenant.',
+      create: 'Adds a new warehouse. Slug must be unique.',
+      // Custom action keys are accepted alongside the standard ones
+      pdf: 'Generates a printable PDF report for this warehouse.',
+    },
+  },
+})
+```
+
+`enabled: false` falls back to the pre-#38 behaviour: routes registered without any `schema` block. Use it when you want full control over the OpenAPI spec, or when you don't need it at all.
+
 ## What stays your responsibility
 
 - **Auth**: `extractContext` is where you parse JWTs / session cookies / headers. The adapter never invents a `userId` or `tenantId`.

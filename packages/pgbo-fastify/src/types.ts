@@ -33,6 +33,27 @@ export interface ProjectionRouteConfig {
    * Defaults to `projection.bo.valueHelps`.
    */
   readonly valueHelps?: Readonly<Record<string, ViewDef>>
+  /**
+   * OpenAPI / Swagger schema generation (issue #38). Populated by default so
+   * apps with `@fastify/swagger` registered get a complete spec immediately.
+   */
+  readonly swagger?: SwaggerConfig
+}
+
+/** Per-projection control of generated OpenAPI schema (issue #38). */
+export interface SwaggerConfig {
+  /** Disable schema generation entirely. Default: true (on). */
+  readonly enabled?: boolean
+  /** Override the auto tag (defaults to projection.name). */
+  readonly tag?: string
+  /** Per-route description overrides. Custom action keys are accepted alongside the standard ones. */
+  readonly descriptions?: Readonly<Record<string, string | undefined>>
+  /**
+   * Security scheme name advertised on routes whose view has `.restrict()`.
+   * Default: 'bearerAuth'. Must match a scheme registered with `@fastify/swagger`
+   * (e.g. via `securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } }`).
+   */
+  readonly securityScheme?: string
 }
 
 /**
@@ -56,4 +77,6 @@ export interface ViewRouteConfig {
   readonly prefix?: string
   /** Extract context from request */
   readonly extractContext: (req: FastifyRequest) => RouteContext | Promise<RouteContext>
+  /** OpenAPI / Swagger schema generation (issue #38). */
+  readonly swagger?: SwaggerConfig
 }
