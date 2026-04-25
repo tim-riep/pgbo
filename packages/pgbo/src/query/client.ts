@@ -121,6 +121,14 @@ export interface Database extends Queryable {
   /** Optional cache provider registered via DatabaseConfig. undefined when no cache was configured. */
   readonly cache?: CacheProvider
 
+  /**
+   * True when `DatabaseConfig.sessionParams` was set with at least one resolver.
+   * `@pgbo/fastify` reads this to decide whether to wrap request handlers in
+   * `db.withContext` — skipping the wrap entirely when no params are configured
+   * so that apps without session params don't pay an extra transaction per request.
+   */
+  readonly hasSessionParams: boolean
+
   /** Close the connection pool */
   close(): Promise<void>
 
@@ -185,9 +193,13 @@ export function createDatabase(config: DatabaseConfig): Database {
     return builder
   }
 
+  const hasSessionParams = config.sessionParams !== undefined
+    && Object.keys(config.sessionParams).length > 0
+
   const db: Database = {
     pool,
     cache,
+    hasSessionParams,
 
     query: queryFn,
 
