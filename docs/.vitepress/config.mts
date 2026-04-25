@@ -62,6 +62,7 @@ export default defineConfig({
         text: 'Adapters',
         items: [
           { text: '@pgbo/fastify', link: '/fastify' },
+          { text: '@pgbo/client', link: '/client' },
         ],
       },
     ],

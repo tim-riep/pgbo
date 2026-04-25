@@ -23,7 +23,8 @@ import { toCamelCase } from '../query/select.js'
 import { getI18nConfig } from '../schema/i18n.js'
 import type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig, ValueHelpRef } from './types.js'
 
-export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig, ValueHelpRef } from './types.js'
+export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, EnrichConfig, ValueHelpRef, AssociationMeta, CompositionMeta, ValueHelpMeta } from './types.js'
+export type { FieldKind, FilterOption } from '../schema/definitions.js'
 
 // --- Kind inference ---
 

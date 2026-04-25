@@ -64,9 +64,11 @@ jobs:
         run: |
           npm publish --workspace @pgbo/core --provenance --access public --dry-run
           npm publish --workspace @pgbo/fastify --provenance --access public --dry-run
+          npm publish --workspace @pgbo/client --provenance --access public --dry-run
 
       # No NPM_TOKEN — authenticates via OIDC against npm's Trusted Publisher
-      # config for @pgbo/core and @pgbo/fastify. Requires id-token:write (above).
+      # config for @pgbo/core, @pgbo/fastify, and @pgbo/client. Requires
+      # id-token:write (above) and a Trusted Publisher entry per package on npm.
       - name: Publish to npm + create GitHub release
         if: inputs.dry-run != true
         uses: changesets/action@v1
