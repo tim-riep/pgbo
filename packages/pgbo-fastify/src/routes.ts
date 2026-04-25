@@ -7,11 +7,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Database } from '@pgbo/core'
 import type { ViewDef } from '@pgbo/core/schema'
-import type { WhereConditions } from '@pgbo/core/query'
+import type { WhereConditions, TransactionClient } from '@pgbo/core/query'
 import { parseListParams } from '@pgbo/core/query'
 import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
 import { enrichCompositions, enrichAssociations, projectRow, projectionExposes, type ProjectionDef } from '@pgbo/core/bo'
-import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse, SwaggerConfig } from './types.js'
+import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse, SwaggerConfig, RouteContext } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
 import {
   rowSchema, listResponseSchema, listQuerystringSchema, paramSchema, paramFieldType,
@@ -149,6 +149,24 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   const readExposed = projectionExposes(projection, 'read')
 
+  // --- Session-param wrap (issue #42) ---
+  // When the database has sessionParams configured, every read handler runs
+  // inside `db.withContext(ctx, ...)` so views with .translatedJoin() (or any
+  // current_setting() lookup) see the per-request values. The handler receives
+  // the scoped TransactionClient, which paginateView/enrichCompositions/etc.
+  // accept (their `db` params widened to Database | TransactionClient).
+  // When sessionParams is empty, the wrap is a no-op — saves an extra
+  // transaction round-trip per request.
+  function withSession<T>(
+    ctx: RouteContext,
+    fn: (q: Database | TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (db.hasSessionParams) {
+      return db.withContext(ctx as unknown as Record<string, unknown>, tx => fn(tx))
+    }
+    return fn(db)
+  }
+
   // --- OpenAPI schema generation (issue #38) ---
   const swagger: SwaggerConfig = config.swagger ?? {}
   const swaggerEnabled = swagger.enabled !== false  // default on
@@ -179,8 +197,12 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   // Fetch a single row by paramField — used by detail + write-protection.
   // Applies the projection's root WHERE so "invisible" rows 404 even if they exist.
-  async function fetchByParam(paramValue: string, userId?: string): Promise<Record<string, unknown> | undefined> {
-    let q = db.from(viewDef).where(mergeWhere({ [paramField]: paramValue } as WhereConditions, projection.where) ?? { [paramField]: paramValue } as WhereConditions)
+  async function fetchByParam(
+    queryable: Database | TransactionClient,
+    paramValue: string,
+    userId?: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    let q = queryable.from(viewDef).where(mergeWhere({ [paramField]: paramValue } as WhereConditions, projection.where) ?? { [paramField]: paramValue } as WhereConditions)
     if (userId) q = q.as(userId)
     const rows = await q.execute()
     return rows[0] as Record<string, unknown> | undefined
@@ -217,24 +239,26 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
         : undefined
       const baseWhere = mergeWhere(tenantWhere, projection.where)
 
-      const result = await paginateView({
-        db, view: viewDef, params, baseWhere, userId: ctx.userId,
+      return withSession(ctx, async (q) => {
+        const result = await paginateView({
+          db: q, view: viewDef, params, baseWhere, userId: ctx.userId,
+        })
+
+        let items = result.items as Record<string, unknown>[]
+        if (Object.keys(bo.compositions).length > 0) {
+          items = await enrichCompositions(q, bo, items, { ctx: { ...ctx } })
+        }
+        if (Object.keys(bo.associations).length > 0) {
+          items = await enrichAssociations(q, bo, items, { ctx: { ...ctx } })
+        }
+        if (bo.transformItems) {
+          items = await bo.transformItems(items, ctx.locale, q)
+        }
+        if (includeGlobal) items = attachGlobalFlag(items, tenantCol)
+        items = narrowAll(items)
+
+        return { items, total: result.total, page: result.page, limit: result.limit }
       })
-
-      let items = result.items as Record<string, unknown>[]
-      if (Object.keys(bo.compositions).length > 0) {
-        items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
-      }
-      if (Object.keys(bo.associations).length > 0) {
-        items = await enrichAssociations(db, bo, items, { ctx: { ...ctx } })
-      }
-      if (bo.transformItems) {
-        items = await bo.transformItems(items, ctx.locale, db)
-      }
-      if (includeGlobal) items = attachGlobalFlag(items, tenantCol)
-      items = narrowAll(items)
-
-      return { items, total: result.total, page: result.page, limit: result.limit }
     })
 
     app.get(`${prefix}/:param`, withSchema({
@@ -247,26 +271,28 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       const ctx = await config.extractContext(req)
       const paramValue = extractParam(req)
 
-      const row = await fetchByParam(paramValue, ctx.userId)
-      if (!row) {
-        reply.code(404)
-        return { error: 'Not found' }
-      }
+      return withSession(ctx, async (q) => {
+        const row = await fetchByParam(q, paramValue, ctx.userId)
+        if (!row) {
+          reply.code(404)
+          return { error: 'Not found' }
+        }
 
-      let items: Record<string, unknown>[] = [row]
-      if (Object.keys(bo.compositions).length > 0) {
-        items = await enrichCompositions(db, bo, items, { ctx: { ...ctx } })
-      }
-      if (Object.keys(bo.associations).length > 0) {
-        items = await enrichAssociations(db, bo, items, { ctx: { ...ctx } })
-      }
-      if (bo.transformItems) {
-        items = await bo.transformItems(items, ctx.locale, db)
-      }
-      if (includeGlobal) items = attachGlobalFlag(items, tenantCol)
-      items = narrowAll(items)
+        let items: Record<string, unknown>[] = [row]
+        if (Object.keys(bo.compositions).length > 0) {
+          items = await enrichCompositions(q, bo, items, { ctx: { ...ctx } })
+        }
+        if (Object.keys(bo.associations).length > 0) {
+          items = await enrichAssociations(q, bo, items, { ctx: { ...ctx } })
+        }
+        if (bo.transformItems) {
+          items = await bo.transformItems(items, ctx.locale, q)
+        }
+        if (includeGlobal) items = attachGlobalFlag(items, tenantCol)
+        items = narrowAll(items)
 
-      return items[0]
+        return items[0]
+      })
     })
 
     // Metadata — reflects the narrowed surface. Lives in a separate `/meta/` namespace
@@ -294,8 +320,10 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
         }), async (req: FastifyRequest) => {
           const ctx = await config.extractContext(req)
           const params = parseListParams(req.query as Record<string, unknown>)
-          const result = await paginateView({ db, view: vh, params, userId: ctx.userId })
-          return { items: result.items, total: result.total, page: result.page, limit: result.limit }
+          return withSession(ctx, async (q) => {
+            const result = await paginateView({ db: q, view: vh, params, userId: ctx.userId })
+            return { items: result.items, total: result.total, page: result.page, limit: result.limit }
+          })
         })
       }
     }
@@ -337,7 +365,7 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       const paramValue = extractParam(req)
 
       // Always resolve the existing row through the projection — out-of-scope records 404
-      const existing = await fetchByParam(paramValue, ctx.userId)
+      const existing = await withSession(ctx, q => fetchByParam(q, paramValue, ctx.userId))
       if (!existing) {
         reply.code(404)
         return { error: 'Not found' }
@@ -363,7 +391,7 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       const ctx = await config.extractContext(req)
       const paramValue = extractParam(req)
 
-      const existing = await fetchByParam(paramValue, ctx.userId)
+      const existing = await withSession(ctx, q => fetchByParam(q, paramValue, ctx.userId))
       if (!existing) {
         reply.code(404)
         return { error: 'Not found' }
@@ -433,15 +461,26 @@ export function registerViewRoute(app: FastifyInstance, db: Database, config: Vi
       }) }
     : {}
 
+  function viewWithSession<T>(
+    ctx: RouteContext,
+    fn: (q: Database | TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (db.hasSessionParams) {
+      return db.withContext(ctx as unknown as Record<string, unknown>, tx => fn(tx))
+    }
+    return fn(db)
+  }
+
   app.get(prefix, listOpts, async (req: FastifyRequest) => {
     const ctx = await config.extractContext(req)
     const params = parseListParams(req.query as Record<string, unknown>)
 
-    const result = await paginateView({
-      db, view: viewDef, params, userId: ctx.userId,
+    return viewWithSession(ctx, async (q) => {
+      const result = await paginateView({
+        db: q, view: viewDef, params, userId: ctx.userId,
+      })
+      return { items: result.items, total: result.total, page: result.page, limit: result.limit }
     })
-
-    return { items: result.items, total: result.total, page: result.page, limit: result.limit }
   })
 
   // GET metadata

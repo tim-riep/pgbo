@@ -2,11 +2,19 @@
 
 import type { Database } from '@pgbo/core'
 import type { ViewDef } from '@pgbo/core/schema'
-import type { PaginatedResult, ListParams, WhereConditions } from '@pgbo/core/query'
+import type { PaginatedResult, ListParams, WhereConditions, TransactionClient } from '@pgbo/core/query'
 import { viewMeta } from '@pgbo/core/metadata'
 
+/**
+ * Either the top-level `Database` or a request-scoped `TransactionClient` from
+ * `db.withContext(...)`. Both share the `from` / `_table` / `query` surface that
+ * paginateView and friends rely on, so accepting both lets routes opt into the
+ * session-param-aware scope without changing helper code (issue #42).
+ */
+export type DbOrTx = Database | TransactionClient
+
 export interface PaginateOptions {
-  readonly db: Database
+  readonly db: DbOrTx
   readonly view: ViewDef
   readonly params: ListParams
   readonly baseWhere?: WhereConditions

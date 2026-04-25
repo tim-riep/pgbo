@@ -6,10 +6,15 @@
 // composition gives you the caller-locale name lifted onto the parent.
 
 import type { Database } from '../query/client.js'
+import type { TransactionClient } from '../query/transaction.js'
 import type { AssociationDef, AssociationTargetBO, ViewDef } from '../schema/definitions.js'
 import type { BusinessObjectDef, ActionContext } from './types.js'
 import type { WhereConditions } from '../query/where.js'
 import { enrichCompositions } from './enrich.js'
+
+/** Database or a request-scoped TransactionClient — used so association reads
+ * see session params when callers wrap routes in `db.withContext` (issue #42). */
+type DbOrTx = Database | TransactionClient
 
 function isBusinessObjectTarget(target: unknown): target is AssociationTargetBO {
   return typeof target === 'object' && target !== null
@@ -42,7 +47,7 @@ export interface EnrichAssociationsOptions {
  * Returns new objects; does not mutate input.
  */
 export async function enrichAssociations<T extends Record<string, unknown>>(
-  db: Database,
+  db: DbOrTx,
   bo: BusinessObjectDef,
   items: readonly T[],
   opts: EnrichAssociationsOptions = {},

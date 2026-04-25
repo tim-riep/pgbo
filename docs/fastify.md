@@ -435,6 +435,36 @@ registerProjection(app, db, {
 
 `enabled: false` falls back to the pre-#38 behaviour: routes registered without any `schema` block. Use it when you want full control over the OpenAPI spec, or when you don't need it at all.
 
+## Session params + `db.withContext` — automatic
+
+When `createDatabase({ sessionParams })` is configured, `registerProjection` and `registerViewRoute` automatically wrap every read handler in `db.withContext(ctx, ...)` so views with `.translatedJoin()` (or any `current_setting('…', true)` lookup) see the per-request values without per-route boilerplate.
+
+```typescript
+const db = createDatabase({
+  connectionString,
+  sessionParams: { 'app.locale': (ctx) => (ctx as RouteContext).locale },
+})
+
+registerProjection(app, db, {
+  projection: warehouseProjection,
+  extractContext: (req) => ({ app, db, locale: req.headers['accept-language'] ?? 'en' }),
+})
+
+// Hitting /bo/warehouse/valueHelp/uom now resolves the translation for the
+// caller's locale — no extra wiring on the route.
+```
+
+Scope of the wrap:
+
+- `GET {prefix}` (list) — wrapped
+- `GET {prefix}/:param` (detail) — wrapped
+- `GET /bo/{name}/valueHelp/{vh}` — wrapped
+- `PUT` / `DELETE` — the projection-visibility row pre-fetch is wrapped; the actual `bo.update` / `bo.delete` call runs unwrapped because writes don't depend on `current_setting`.
+- `POST` / custom actions — unwrapped. If your custom action handler does locale-aware reads, call `db.withContext(ctx, ...)` inside the handler explicitly.
+- View routes (`registerViewRoute`) — wrapped.
+
+When `sessionParams` is empty (`db.hasSessionParams === false`), the wrap is a no-op — apps without session params don't pay an extra transaction round-trip per request.
+
 ## What stays your responsibility
 
 - **Auth**: `extractContext` is where you parse JWTs / session cookies / headers. The adapter never invents a `userId` or `tenantId`.

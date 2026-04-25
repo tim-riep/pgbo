@@ -2,11 +2,17 @@
 // (issue #018 base + #019 nested children + #13 cardinality/where/merge + #25 link-table M2M)
 
 import type { Database } from '../query/client.js'
+import type { TransactionClient } from '../query/transaction.js'
 import type { TableDef, ViewDef } from '../schema/definitions.js'
 import type { BusinessObjectDef, CompositionDef, AnyCompositionDef, LinkCompositionDef, BoTarget, ActionContext } from './types.js'
 import { isLinkComposition } from './types.js'
 import { toCamelCase } from '../query/select.js'
 import type { WhereConditions } from '../query/where.js'
+
+/** Either the top-level Database or a request-scoped TransactionClient — used so
+ * read paths see `current_setting()` when callers wrap the route in `db.withContext`
+ * (issue #42). Both expose the same `from` / `_table` / `query` surface this file uses. */
+type DbOrTx = Database | TransactionClient
 
 function resolveTable(compDef: CompositionDef): TableDef | undefined {
   return compDef.table ?? compDef.view?.source
@@ -87,7 +93,7 @@ type LevelResult = Map<string, { def: AnyCompositionDef; grouped: Map<unknown, R
  * Returns a Map<parentValue, targetRow[]> with columns already narrowed per `columns`.
  */
 async function loadLinkComposition(
-  db: Database,
+  db: DbOrTx,
   def: LinkCompositionDef,
   parentIds: unknown[],
   opts: EnrichOptions,
@@ -175,7 +181,7 @@ async function loadLinkComposition(
 }
 
 async function loadCompositionLevel(
-  db: Database,
+  db: DbOrTx,
   compositions: readonly (readonly [string, AnyCompositionDef])[],
   parentKeyField: string,
   items: readonly Record<string, unknown>[],
@@ -254,7 +260,7 @@ function shapeChildren(def: AnyCompositionDef, children: Record<string, unknown>
  * attach them to parent rows. Returns new objects — does not mutate input.
  */
 export async function enrichCompositions<T extends Record<string, unknown>>(
-  db: Database,
+  db: DbOrTx,
   bo: BusinessObjectDef,
   items: readonly T[],
   opts: EnrichOptions = {},
