@@ -7,12 +7,10 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
-  // GitHub Pages serves from /pgbo — set this to match the repo name
+  // GitHub Pages serves from /pgbo — set this to match the repo name.
+  // Change this (e.g. to '/' for a custom domain) and everything below
+  // stays correct because asset paths derive from it.
   base: '/pgbo/',
-
-  head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/pgbo/logo.svg' }],
-  ],
 
   themeConfig: {
     nav: [
@@ -58,6 +56,12 @@ export default defineConfig({
           { text: 'Validation', link: '/validation' },
           { text: 'i18n', link: '/i18n' },
           { text: 'Testing', link: '/testing' },
+        ],
+      },
+      {
+        text: 'Adapters',
+        items: [
+          { text: '@pgbo/fastify', link: '/fastify' },
         ],
       },
     ],
