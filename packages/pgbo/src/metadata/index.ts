@@ -1,6 +1,6 @@
 // Annotation-based metadata system
 
-import type { ViewDef, TableDef, ColumnRef, AnyColumnBuilder, FieldKind, ValueHelpViewDef } from '../schema/definitions.js'
+import type { ViewDef, TableDef, ColumnRef, AnyColumnBuilder, FieldKind } from '../schema/definitions.js'
 
 type MetaSource = ViewDef | TableDef
 
@@ -30,7 +30,7 @@ export type { FieldMeta, FilterMeta, ViewMeta, BOMeta, TranslationConfig, Enrich
 const numericTypes = new Set(['integer', 'int4', 'serial', 'bigint', 'bigserial', 'numeric', 'real', 'double precision'])
 const dateTypes = new Set(['timestamp', 'timestamptz', 'date'])
 
-function inferKind(pgType: string, annotations: { immutable?: boolean; searchable?: boolean; label?: string; valueHelp?: ValueHelpViewDef }): FieldKind {
+function inferKind(pgType: string, annotations: { immutable?: boolean; searchable?: boolean; label?: string; valueHelp?: ViewDef }): FieldKind {
   if (annotations.valueHelp) return 'relation'
   if (annotations.immutable && annotations.searchable && annotations.label?.includes('slug')) return 'slug'
   if (numericTypes.has(pgType)) return 'number'
@@ -42,17 +42,18 @@ function inferKind(pgType: string, annotations: { immutable?: boolean; searchabl
 function inferFilterMeta(kind: FieldKind, annotations: {
   filterType?: string
   filterOptions?: readonly { value: string; label: string }[]
-  valueHelp?: ValueHelpViewDef
+  valueHelp?: ViewDef
 }): FilterMeta {
   if (annotations.filterType) {
     const meta: FilterMeta = { type: annotations.filterType as FilterMeta['type'] }
     if (annotations.filterOptions) return { ...meta, options: annotations.filterOptions }
-    if (annotations.valueHelp) {
+    const vh = annotations.valueHelp
+    if (vh?.vhAnnotation) {
       return {
         ...meta,
-        endpoint: annotations.valueHelp.name,
-        valueField: annotations.valueHelp.keyField,
-        labelField: annotations.valueHelp.displayField,
+        endpoint: vh.name,
+        valueField: vh.vhAnnotation.key,
+        labelField: vh.vhAnnotation.display,
       }
     }
     return meta
@@ -62,12 +63,12 @@ function inferFilterMeta(kind: FieldKind, annotations: {
     case 'date': return { type: 'date' }
     case 'relation': {
       const vh = annotations.valueHelp
-      if (vh) {
+      if (vh?.vhAnnotation) {
         return {
           type: 'relation',
           endpoint: vh.name,
-          valueField: vh.keyField,
-          labelField: vh.displayField,
+          valueField: vh.vhAnnotation.key,
+          labelField: vh.vhAnnotation.display,
         }
       }
       return { type: 'relation' }
@@ -146,7 +147,7 @@ export function viewMeta(source: ViewDef | TableDef): ViewMeta {
 
 export function boMeta(
   bo: BusinessObjectDef,
-  config?: { translations?: TranslationConfig; valueHelps?: { name: string; view: ViewDef }[] },
+  config?: { translations?: TranslationConfig },
 ): BOMeta {
   const base = viewMeta(bo.root)
 
@@ -220,10 +221,10 @@ export function boMeta(
     }
   })
 
-  // Build valueHelps
-  const valueHelps = (config?.valueHelps ?? []).map(vh => ({
-    name: vh.name,
-    fields: viewMeta(vh.view).fields,
+  // Build valueHelps from the BO's registered views (each is a ViewDef with .vh())
+  const valueHelps = Object.entries(bo.valueHelps).map(([, vhView]) => ({
+    name: vhView.name,
+    fields: viewMeta(vhView).fields,
   }))
 
   // Merge view associations with BO-level associations (BO wins on key collision)

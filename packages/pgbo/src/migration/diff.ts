@@ -1,7 +1,7 @@
 // Schema diff algorithm — Phase 4 (Step 13)
 
 import type { DatabaseSnapshot } from './introspect.js'
-import type { TableDef, DomainDef, EnumDef, ViewDef, ValueHelpViewDef } from '../schema/definitions.js'
+import type { TableDef, DomainDef, EnumDef, ViewDef } from '../schema/definitions.js'
 import type { BusinessObjectDef } from '../bo/types.js'
 import { toSnakeCase, generateIndexName } from '../schema/table.js'
 
@@ -121,8 +121,25 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
     }
   }
 
-  // --- 5. Views ---
-  for (const viewDef of definitions.views) {
+  // --- 5. Views (explicit + value-help views discovered via registered BOs, issue #31) ---
+  // Value helps are just regular ViewDefs annotated with .vh() (issue #34), so we
+  // union both sources and dedupe by name — users can put vh views in `views:` or
+  // let them flow in via `bos:`, but never both (would be a duplicate CREATE VIEW).
+  const seenViews = new Set<string>()
+  const allViews: ViewDef[] = []
+  for (const v of definitions.views) {
+    if (!seenViews.has(v.name)) {
+      seenViews.add(v.name)
+      allViews.push(v)
+    }
+  }
+  for (const vh of collectValueHelps(definitions.bos ?? [])) {
+    if (!seenViews.has(vh.name)) {
+      seenViews.add(vh.name)
+      allViews.push(vh)
+    }
+  }
+  for (const viewDef of allViews) {
     const existing = snapshot.views.find(v => v.name === viewDef.name)
     if (!existing) {
       operations.push({
@@ -132,25 +149,14 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
     }
   }
 
-  // --- 6. Value help views discovered via registered BOs (issue #31) ---
-  for (const vh of collectValueHelps(definitions.bos ?? [])) {
-    const existing = snapshot.views.find(v => v.name === vh.name)
-    if (!existing) {
-      operations.push({
-        type: 'createView',
-        sql: vh.toSQL(),
-      })
-    }
-  }
-
   return { operations }
 }
 
-/** Walk BOs, collect unique value helps by name. Multiple BOs can share a value help
- * (e.g. both `warehouseProduct` and `stockJournal` reuse `warehouseValueHelp`) — we emit
- * CREATE VIEW only once per name. First occurrence wins. */
-function collectValueHelps(bos: readonly BusinessObjectDef[]): ValueHelpViewDef[] {
-  const seen = new Map<string, ValueHelpViewDef>()
+/** Walk BOs, collect unique value-help views by name. Multiple BOs can share a value
+ * help (e.g. both `warehouseProduct` and `stockJournal` reuse `warehouseValueHelp`) — we
+ * emit CREATE VIEW only once per name. First occurrence wins. */
+function collectValueHelps(bos: readonly BusinessObjectDef[]): ViewDef[] {
+  const seen = new Map<string, ViewDef>()
   for (const bo of bos) {
     for (const vh of Object.values(bo.valueHelps)) {
       if (!seen.has(vh.name)) seen.set(vh.name, vh)

@@ -7,7 +7,8 @@ import { table } from '../../src/schema/table.js'
 import { text, integer, timestamp } from '../../src/schema/types.js'
 import { domain } from '../../src/schema/domain.js'
 import { pgEnum } from '../../src/schema/enum.js'
-import { view, valueHelpView } from '../../src/schema/view.js'
+import { view } from '../../src/schema/view.js'
+import { col } from '../../src/schema/column.js'
 import { index } from '../../src/schema/constraints.js'
 import { defineBO } from '../../src/bo/index.js'
 
@@ -117,7 +118,9 @@ describe('Migration execution', () => {
         primaryKey: ['id'],
       })
       const warehouseView = view('warehouse_view').from(warehouseTable)
-      const warehouseVh = valueHelpView('warehouse_vh').from(warehouseTable).key('slug').display('name')
+      const warehouseVh = view('warehouse_vh').from(warehouseTable)
+        .columns({ slug: col('slug'), name: col('name') })
+        .vh({ key: 'slug', display: 'name' })
       const warehouseBO = defineBO(warehouseView, {
         name: 'warehouse',
         paramField: 'id',

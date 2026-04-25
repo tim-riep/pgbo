@@ -219,27 +219,16 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
     // so it never collides with the list/detail route prefix (#24).
     app.get(`/meta/${projection.name}`, () => transformProjectionMeta(projection, boMeta(bo)))
 
-    // Value help endpoints
+    // Value help endpoints — each vh is a ViewDef annotated with .vh(), so everything
+    // a regular view supports (search, filters, pagination, restrict, translatedJoin)
+    // just works.
     if (Object.keys(valueHelps).length > 0) {
       for (const [vhName, vh] of Object.entries(valueHelps)) {
         app.get(`/bo/${projection.name}/valueHelp/${vhName}`, async (req: FastifyRequest) => {
           const ctx = await config.extractContext(req)
           const params = parseListParams(req.query as Record<string, unknown>)
-
-          if ('source' in vh && typeof vh.source === 'object') {
-            const result = await paginateView({
-              db, view: vh as ViewDef, params, userId: ctx.userId,
-            })
-            return { items: result.items, total: result.total, page: result.page, limit: result.limit }
-          }
-
-          const offset = (params.page - 1) * params.limit
-          const [items, countRows] = await Promise.all([
-            db.query(`SELECT * FROM ${vh.name} LIMIT ${params.limit} OFFSET ${offset}`),
-            db.query<{ count: string }>(`SELECT COUNT(*) AS count FROM ${vh.name}`),
-          ])
-          const total = Number(countRows[0]?.count ?? 0)
-          return { items, total, page: params.page, limit: params.limit }
+          const result = await paginateView({ db, view: vh, params, userId: ctx.userId })
+          return { items: result.items, total: result.total, page: result.page, limit: result.limit }
         })
       }
     }

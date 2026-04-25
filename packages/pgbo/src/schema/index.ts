@@ -1,6 +1,6 @@
 // Schema DSL — tables, views, domains, enums
 export { table } from './table.js'
-export { view, valueHelpView } from './view.js'
+export { view } from './view.js'
 export { domain } from './domain.js'
 export { pgEnum } from './enum.js'
 export { foreignKey, index, check } from './constraints.js'
@@ -24,7 +24,7 @@ export type {
   ColumnBuilder, AnyColumnBuilder, ColumnDef, CheckExpr,
   ForeignKeyDef, ForeignKeyBuilder, IndexDef, IndexBuilder,
   CheckConstraintDef, CheckBuilder, ForeignKeyReference,
-  FieldAnnotations, FieldKind, FilterOption, ColumnRef, JoinDef, ValueHelpViewDef, SubqueryCountRef, Restriction,
-  AssociationDef, AssociationTargetBO, TranslatedJoinSpec,
+  FieldAnnotations, FieldKind, FilterOption, ColumnRef, JoinDef, SubqueryCountRef, Restriction,
+  AssociationDef, AssociationTargetBO, TranslatedJoinSpec, VhAnnotation,
 } from './definitions.js'
 export { toSnakeCase } from './table.js'

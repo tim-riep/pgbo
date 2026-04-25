@@ -176,7 +176,7 @@ DDL: `CREATE TYPE stock_type AS ENUM ('RECEIPT', 'ADJUSTMENT', 'TRANSFER')`
 Views are the **only interface** between application code and the database:
 
 ```typescript
-import { view, valueHelpView, col, translated } from '@pgbo/core/schema'
+import { view, col, translated } from '@pgbo/core/schema'
 
 const warehouseView = view('warehouse_view')
   .from(warehouseTable)
@@ -312,13 +312,26 @@ Cannot be combined with `.columns()` — `.translatedJoin()` owns the output col
 
 ### Value Help Views
 
-Flat read-only views for dropdowns:
+A value help is just a regular view marked with `.vh({ key, display })`. Every view feature — joins, `translatedJoin`, `restrict`, `where` — works as usual. The annotation tells `defineBO()` to accept it as a value help and `@pgbo/fastify` to expose it at `/bo/:name/valueHelp/:vhName`.
 
 ```typescript
-const warehouseValueHelp = valueHelpView('warehouse_vh')
+const warehouseValueHelp = view('warehouse_vh')
   .from(warehouseTable)
-  .key('slug')
-  .display('name')
+  .columns({ slug: col('slug'), name: col('name') })
+  .vh({ key: 'slug', display: 'name' })
+```
+
+Value helps must stay flat — `.associations()` is forbidden on a vh-annotated view (throws at builder time). If you need a locale-resolved label, combine with `.translatedJoin()`:
+
+```typescript
+const uomVh = view('uom_vh')
+  .from(unitOfMeasureTable)
+  .translatedJoin(unitOfMeasureTranslationTable, {
+    parentKey: 'uomSlug', localeColumn: 'locale',
+    localeParam: 'app.locale', fallbackLocale: 'en',
+    fields: ['name', 'symbol'],
+  })
+  .vh({ key: 'slug', display: 'name' })
 ```
 
 ### Associations
@@ -365,10 +378,11 @@ const warehouseView = view('warehouse_view')
   .columns({ ... })
 
 // Value help — no auth required
-const warehouseVH = valueHelpView('warehouse_vh')
+const warehouseVH = view('warehouse_vh')
   .from(warehouseTable)
+  .columns({ slug: col('slug'), name: col('name') })
   .noAuth()
-  .key('slug').display('name')
+  .vh({ key: 'slug', display: 'name' })
 
 // Additional context (opaque to pgbo — passed to handler as-is)
 const pageView = view('page_view')

@@ -156,7 +156,7 @@ export interface FieldAnnotations {
   readonly hidden?: boolean
   readonly inList?: boolean
   readonly inForm?: boolean
-  readonly valueHelp?: ValueHelpViewDef
+  readonly valueHelp?: ViewDef
   readonly required?: boolean
   readonly kind?: FieldKind
   readonly filterType?: 'text' | 'date' | 'select' | 'relation'
@@ -186,7 +186,7 @@ export interface ColumnRef<T = unknown, R extends string = string> {
   hidden(): ColumnRef<T, R>
   inList(show: boolean): ColumnRef<T, R>
   inForm(show: boolean): ColumnRef<T, R>
-  valueHelp(vh: ValueHelpViewDef): ColumnRef<T, R>
+  valueHelp(vh: ViewDef): ColumnRef<T, R>
   required(): ColumnRef<T, R>
   kind(k: FieldKind): ColumnRef<T, R>
   filterType(t: 'text' | 'date' | 'select' | 'relation'): ColumnRef<T, R>
@@ -286,6 +286,20 @@ export interface AssociationDef {
 }
 
 /**
+ * Annotation that marks a regular view as a value help — a flat, one-row-per-option
+ * source for UI pickers. Set via `.vh({ key, display })` on `ViewDef`. The view
+ * itself is an ordinary `ViewDef` — it supports joins, `translatedJoin`, restrictions,
+ * etc. — but having this annotation tells `@pgbo/fastify` to expose it via the
+ * `/bo/:name/valueHelp/:vhName` route and tells `defineBO` to accept it as a value help.
+ */
+export interface VhAnnotation {
+  /** Column the parent BO stores (the identifier). */
+  readonly key: string
+  /** Column shown to the user (human label). */
+  readonly display: string
+}
+
+/**
  * Spec for a `.translatedJoin()` view helper — emits LEFT JOINs to a translation
  * table filtered by a PostgreSQL session param (e.g. `app.locale`), with
  * optional fallback-locale COALESCE.
@@ -319,6 +333,7 @@ export interface ViewDef<
   readonly isNoAuth?: boolean
   readonly viewAssociations?: Readonly<Record<string, AssociationDef>>
   readonly translatedJoinSpec?: TranslatedJoinSpec
+  readonly vhAnnotation?: VhAnnotation
   /** Phantom type carrying the inferred row shape */
   readonly _rowType?: TRow
   from<C extends Record<string, AnyColumnBuilder>>(table: TableDef<C>): ViewDef<TRow, C>
@@ -338,21 +353,15 @@ export interface ViewDef<
    * JOIN with COALESCE so missing translations still return something.
    */
   translatedJoin(translationTable: TableDef, spec: Omit<TranslatedJoinSpec, 'translationTable'>): ViewDef<TRow, SC>
+  /**
+   * Mark this view as a value help. The view must remain flat (no associations)
+   * and callers must use the `key` + `display` column names referenced here.
+   * Registering the annotation makes `defineBO()` accept the view in `valueHelps`
+   * and makes `@pgbo/fastify` expose it via `/bo/:name/valueHelp/:vhName`.
+   */
+  vh(spec: VhAnnotation): ViewDef<TRow, SC>
   /** Brand the view with an explicit row type (escape hatch) */
   as<T extends Record<string, unknown>>(): ViewDef<T>
-  toSQL(): string
-}
-
-// --- Value help view ---
-
-export interface ValueHelpViewDef {
-  readonly name: string
-  readonly source?: TableDef
-  readonly keyField?: string
-  readonly displayField?: string
-  from(table: TableDef): ValueHelpViewDef
-  key(field: string): ValueHelpViewDef
-  display(field: string): ValueHelpViewDef
   toSQL(): string
 }
 

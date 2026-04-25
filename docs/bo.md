@@ -417,9 +417,14 @@ Associations with neither `merge` nor `attach` are metadata-only — no target q
 
 ## Value Helps
 
-Link dropdown sources to a BO:
+Link dropdown sources to a BO. Each entry must be a `view(...).vh({ key, display })` — any other shape throws at `defineBO()` time.
 
 ```typescript
+const warehouseValueHelp = view('warehouse_vh')
+  .from(warehouseTable)
+  .columns({ slug: col('slug'), name: col('name') })
+  .vh({ key: 'slug', display: 'name' })
+
 const productBO = defineBO(productTable, {
   paramField: 'sku',
   actions: { create: {} },
@@ -428,6 +433,8 @@ const productBO = defineBO(productTable, {
   },
 })
 ```
+
+See the [Value Help Views](schema#value-help-views) section of the schema reference for the full semantics (JOINs, translated labels, auth restrictions).
 
 ## Projections
 

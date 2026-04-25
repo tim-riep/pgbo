@@ -1,6 +1,6 @@
 // Column reference helper for view select — Phase 3
 
-import type { ColumnRef, FieldAnnotations, FieldKind, FilterOption, ValueHelpViewDef, TableDef, AnyColumnBuilder } from './definitions.js'
+import type { ColumnRef, FieldAnnotations, FieldKind, FilterOption, ViewDef, TableDef, AnyColumnBuilder } from './definitions.js'
 import type { InferColumnType } from './infer.js'
 
 class ColumnRefImpl<T = unknown, R extends string = string> implements ColumnRef<T, R> {
@@ -26,7 +26,15 @@ class ColumnRefImpl<T = unknown, R extends string = string> implements ColumnRef
   hidden(): ColumnRef<T, R> { return this.withAnnotation({ hidden: true }) }
   inList(show: boolean): ColumnRef<T, R> { return this.withAnnotation({ inList: show }) }
   inForm(show: boolean): ColumnRef<T, R> { return this.withAnnotation({ inForm: show }) }
-  valueHelp(vh: ValueHelpViewDef): ColumnRef<T, R> { return this.withAnnotation({ valueHelp: vh }) }
+  valueHelp(vh: ViewDef): ColumnRef<T, R> {
+    if (!vh.vhAnnotation) {
+      throw new Error(
+        `.valueHelp() received view "${vh.name}" that is not annotated with .vh({ key, display }). ` +
+        `Mark the view as a value help with .vh({ key, display }) first.`,
+      )
+    }
+    return this.withAnnotation({ valueHelp: vh })
+  }
   required(): ColumnRef<T, R> { return this.withAnnotation({ required: true }) }
   kind(k: FieldKind): ColumnRef<T, R> { return this.withAnnotation({ kind: k }) }
   filterType(t: 'text' | 'date' | 'select' | 'relation'): ColumnRef<T, R> { return this.withAnnotation({ filterType: t }) }

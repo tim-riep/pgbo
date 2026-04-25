@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { table } from '../../src/schema/table.js'
 import { view } from '../../src/schema/view.js'
 import { col } from '../../src/schema/column.js'
-import { valueHelpView } from '../../src/schema/view.js'
 import { text, integer, timestamp, boolean } from '../../src/schema/types.js'
 import { translated, configureI18n } from '../../src/schema/i18n.js'
 import { defineBO } from '../../src/bo/index.js'
@@ -34,10 +33,10 @@ const areaTranslationTable = table('area_translation', {
   primaryKey: ['areaId', 'locale'],
 })
 
-const warehouseVH = valueHelpView('warehouse_vh')
+const warehouseVH = view('warehouse_vh')
   .from(areaTable)
-  .key('slug')
-  .display('name')
+  .columns({ slug: col('slug'), name: col('name') })
+  .vh({ key: 'slug', display: 'name' })
 
 const areaView = view('area_view').from(areaTable).columns({
   id: col('id').hidden().immutable(),
