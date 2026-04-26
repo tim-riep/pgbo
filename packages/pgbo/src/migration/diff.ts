@@ -1,9 +1,11 @@
 // Schema diff algorithm — Phase 4 (Step 13)
 
 import type { DatabaseSnapshot } from './introspect.js'
-import type { TableDef, DomainDef, EnumDef, ViewDef } from '../schema/definitions.js'
+import type { TableDef, DomainDef, EnumDef, ViewDef, ColumnRef } from '../schema/definitions.js'
 import type { BusinessObjectDef } from '../bo/types.js'
 import { toSnakeCase, generateIndexName } from '../schema/table.js'
+import { isTranslatedRef } from '../schema/i18n.js'
+import { isSubqueryCountRef } from '../schema/subquery.js'
 
 export interface MigrationOperation {
   readonly type:
@@ -13,6 +15,7 @@ export interface MigrationOperation {
     | 'createTable'
     | 'addColumn'
     | 'createIndex'
+    | 'dropView'
     | 'createView'
   readonly sql: string
   readonly tableName?: string
@@ -139,17 +142,105 @@ export function diff(definitions: SchemaDefinitions, snapshot: DatabaseSnapshot)
       allViews.push(vh)
     }
   }
+  // Detect column-set drift between schema-defined views and the live database.
+  // When ANY managed view has changed columns we drop ALL managed views (CASCADE
+  // handles dependent-view ordering) and re-create them all from the definitions
+  // (issue #55). Postgres has no `CREATE OR REPLACE VIEW` that allows column-list
+  // changes — only DROP + CREATE works for renaming/adding/removing columns.
+  const liveViewNames = new Set(snapshot.views.map(v => v.name))
+  let anyStale = false
   for (const viewDef of allViews) {
+    if (!liveViewNames.has(viewDef.name)) continue
     const existing = snapshot.views.find(v => v.name === viewDef.name)
-    if (!existing) {
+    if (!existing) continue
+    // Snapshot fixtures from older callers may not populate `columns` —
+    // treat that as "skip drift detection for this view" (matches old
+    // additive-only behaviour rather than spuriously marking it stale).
+    if (!existing.columns) continue
+    const expected = expectedViewColumns(viewDef)
+    if (!columnArraysEqual(expected, existing.columns)) {
+      anyStale = true
+      break
+    }
+  }
+
+  if (anyStale) {
+    // CASCADE drops dependent views too — managed views that depend on stale ones
+    // get re-created from `allViews` below. Unmanaged views that depend on managed
+    // ones are silently dropped — register them with the schema or expect to
+    // recreate them out-of-band.
+    for (const viewDef of allViews) {
+      if (liveViewNames.has(viewDef.name)) {
+        operations.push({
+          type: 'dropView',
+          sql: `DROP VIEW IF EXISTS ${viewDef.name} CASCADE`,
+        })
+      }
+    }
+    for (const viewDef of allViews) {
       operations.push({
         type: 'createView',
         sql: viewDef.toSQL(),
       })
     }
+  } else {
+    // No drift — only create views that don't exist yet.
+    for (const viewDef of allViews) {
+      if (!liveViewNames.has(viewDef.name)) {
+        operations.push({
+          type: 'createView',
+          sql: viewDef.toSQL(),
+        })
+      }
+    }
   }
 
   return { operations }
+}
+
+/** Strict equality on ordered string arrays — used for view column-set comparison. */
+function columnArraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/** Compute the output column names a view would emit, mirroring the logic in
+ * `view.ts`'s `toSQL()`. Used to detect column-set drift against the live schema. */
+function expectedViewColumns(viewDef: ViewDef): string[] {
+  const cols: string[] = []
+  const selected = viewDef.selectedColumns
+
+  if (selected) {
+    for (const [outputName, entry] of Object.entries(selected)) {
+      if (isTranslatedRef(entry)) {
+        // toSQL emits `<translation_table>.<ref>` with no AS — column name is `ref`.
+        cols.push(toSnakeCase(entry.ref))
+      } else if (isSubqueryCountRef(entry)) {
+        cols.push(toSnakeCase(outputName))
+      } else {
+        const colRef = entry as ColumnRef
+        // toSQL: with sourceTable → `... AS <outputName>`; without → just the ref.
+        cols.push(toSnakeCase(colRef.sourceTable ? outputName : colRef.ref))
+      }
+    }
+  } else {
+    // No `.columns()` → all source-table columns.
+    for (const colName of Object.keys(viewDef.source.columns)) {
+      cols.push(toSnakeCase(colName))
+    }
+  }
+
+  // `.translatedJoin()` appends each field as a top-level column.
+  if (viewDef.translatedJoinSpec) {
+    for (const field of viewDef.translatedJoinSpec.fields) {
+      cols.push(toSnakeCase(field))
+    }
+  }
+
+  return cols
 }
 
 /** Walk BOs, collect unique value-help views by name. Multiple BOs can share a value

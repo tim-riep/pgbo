@@ -65,11 +65,36 @@ for (const op of plan.operations) {
 | `createTable` | New table (includes translation tables) |
 | `addColumn` | New column on existing table |
 | `createIndex` | New index on existing table |
-| `createView` | New view |
+| `dropView` | Drop a view whose column set has drifted (issue #55) — always paired with `createView` to re-create it |
+| `createView` | New view, or recreate of a view whose column set drifted |
 
 ### Dependency Ordering
 
-Operations are ordered by dependency: **domains -> enums -> tables -> indexes -> views**. Translation tables declared via `.translations()` are automatically included.
+Operations are ordered by dependency: **domains → enums → tables → indexes → views**. Translation tables declared via `.translations()` are automatically included.
+
+### View column-set drift (issue #55)
+
+Postgres has no `CREATE OR REPLACE VIEW` that allows column-list changes — only DROP + CREATE handles renaming, adding, or removing columns. The diff engine compares each managed view's expected output columns against `information_schema.columns`. If **any** managed view differs, the plan emits:
+
+1. `DROP VIEW IF EXISTS <name> CASCADE` for every managed view in the snapshot.
+2. `CREATE VIEW <name> AS …` for every view in the schema definitions.
+
+`CASCADE` handles dependency ordering automatically. The trade-off: an **unmanaged** view that depends on a managed one is dropped silently (the schema doesn't know about it). Either register every view with the schema or recreate the unmanaged one out-of-band after migration.
+
+When no managed view's column set has drifted, only newly-defined views get a `createView` — existing ones are left alone.
+
+### Scope: additive-only (with the view-recreate exception)
+
+The diff engine is **deliberately additive** for everything except views:
+
+| Detected | Not detected |
+|---|---|
+| New domain / enum / table / column / index / view | Dropped column / table / index |
+| Enum value added | Enum value removed (Postgres can't anyway) |
+| Drifted view column set → drop + recreate | Column type change, default change, constraint change |
+| | Renamed column / table / index |
+
+Destructive changes (drops, renames, type changes) are intentionally out of scope — they require human review and downtime planning that an auto-diff can't infer. For those, write a hand-rolled migration script and run it before `migrate()`.
 
 ## Migrate
 

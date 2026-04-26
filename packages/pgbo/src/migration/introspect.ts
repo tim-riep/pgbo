@@ -54,6 +54,16 @@ export interface SnapshotEnum {
 export interface SnapshotView {
   readonly name: string
   readonly definition: string
+  /**
+   * Output column names of the view (snake_case as Postgres stores them).
+   * Used by `diff()` to detect column-set drift between the schema definition
+   * and the live view, so stale views can be DROP/CREATE-recycled (issue #55).
+   *
+   * Optional for backward compatibility with callers that construct snapshots
+   * by hand (e.g. older test fixtures); when absent, `diff()` skips drift
+   * detection for that view and reverts to the additive-only behaviour.
+   */
+  readonly columns?: readonly string[]
 }
 
 export interface DatabaseSnapshot {
@@ -84,6 +94,7 @@ type IndexRow = {
   [key: string]: unknown
 }
 type ViewRow = { table_name: string; view_definition: string; [key: string]: unknown }
+type ViewColumnRow = { table_name: string; column_name: string; ordinal_position: number; [key: string]: unknown }
 type TableNameRow = { table_name: string; [key: string]: unknown }
 
 export async function introspect(db: Queryable): Promise<DatabaseSnapshot> {
@@ -278,9 +289,25 @@ export async function introspect(db: Queryable): Promise<DatabaseSnapshot> {
      WHERE table_schema = 'public'`,
   )
 
+  const viewColumnRows = await db.query<ViewColumnRow>(
+    `SELECT c.table_name, c.column_name, c.ordinal_position
+     FROM information_schema.columns c
+     JOIN information_schema.views v
+       ON v.table_schema = c.table_schema AND v.table_name = c.table_name
+     WHERE c.table_schema = 'public'
+     ORDER BY c.table_name, c.ordinal_position`,
+  )
+  const viewColumnsByName = new Map<string, string[]>()
+  for (const r of viewColumnRows) {
+    const list = viewColumnsByName.get(r.table_name)
+    if (list) list.push(r.column_name)
+    else viewColumnsByName.set(r.table_name, [r.column_name])
+  }
+
   const views: SnapshotView[] = viewRows.map(r => ({
     name: r.table_name,
     definition: r.view_definition,
+    columns: viewColumnsByName.get(r.table_name) ?? [],
   }))
 
   return { domains, enums, tables, views }
