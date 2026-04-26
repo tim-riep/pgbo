@@ -62,13 +62,17 @@ jobs:
       - name: Publish (dry run)
         if: inputs.dry-run == true
         run: |
+          npm publish --workspace @metadataui/spec --provenance --access public --dry-run
+          npm publish --workspace @metadataui/client --provenance --access public --dry-run
           npm publish --workspace @pgbo/core --provenance --access public --dry-run
           npm publish --workspace @pgbo/fastify --provenance --access public --dry-run
           npm publish --workspace @pgbo/client --provenance --access public --dry-run
 
       # No NPM_TOKEN — authenticates via OIDC against npm's Trusted Publisher
-      # config for @pgbo/core, @pgbo/fastify, and @pgbo/client. Requires
-      # id-token:write (above) and a Trusted Publisher entry per package on npm.
+      # config for each package. Requires id-token:write (above) and a Trusted
+      # Publisher entry per package on npm — including @metadataui/spec and
+      # @metadataui/client which need a one-time manual bootstrap publish before
+      # OIDC can take over.
       - name: Publish to npm + create GitHub release
         if: inputs.dry-run != true
         uses: changesets/action@v1

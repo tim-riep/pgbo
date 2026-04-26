@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build -w @metadataui/spec && npm run build -w @pgbo/core && npm run build -w @metadataui/client && npm run build -w @pgbo/fastify && npm run build -w @pgbo/client",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces --if-present",

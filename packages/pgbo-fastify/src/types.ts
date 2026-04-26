@@ -54,19 +54,10 @@ export interface SwaggerConfig {
   readonly securityScheme?: string
 }
 
-/**
- * Return this shape from a custom BO action handler to send a binary response
- * (PDF, XLSX, CSV, etc.) instead of JSON.
- */
-export interface FileResponse {
-  readonly data: Buffer | Uint8Array
-  /** MIME type, e.g. 'application/pdf' */
-  readonly contentType: string
-  /** Optional filename — triggers Content-Disposition header */
-  readonly filename?: string
-  /** `inline` (default false) serves the file for in-browser viewing; `attachment` forces download */
-  readonly inline?: boolean
-}
+// FileResponse is part of the metadata-driven UI contract — re-export from
+// `@metadataui/spec` so any server implementation (and any client) sees the
+// same shape.
+export type { FileResponse } from '@metadataui/spec'
 
 export interface ViewRouteConfig {
   /** The view to expose */

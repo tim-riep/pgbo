@@ -17,7 +17,7 @@ describe('URL builders', () => {
     expect(urlForDetail(base, 'product', 42)).toBe('http://localhost:3000/bo/product/42')
   })
 
-  it('urlForAction encodes the action segment', () => {
+  it('urlForAction', () => {
     expect(urlForAction(base, 'doc', 'pdf')).toBe('http://localhost:3000/bo/doc/pdf')
   })
 

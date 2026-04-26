@@ -1,30 +1,19 @@
-# @pgbo/client
+# @pgbo/client — DEPRECATED
 
-Framework-agnostic HTTP client for [pgbo](https://github.com/tim-riep/pgbo). Wraps `fetch` with the things every pgbo frontend needs:
+This package has been renamed to **[`@metadataui/client`](https://www.npmjs.com/package/@metadataui/client)** (issue #52). The contract it implements is independent of pgbo — it works with any HTTP server that speaks the metadata-driven UI contract — so the package now lives under a vendor-neutral namespace.
 
-- URL composition (single source of truth for the `/bo/{name}` schema)
-- Pagination unwrap
-- Metadata cache
-- 401 retry via configurable `refreshAuth`
-- Locale + custom-header pass-through
-- Re-exported types from `@pgbo/core` (so frontends never import the server package)
+## Migration (one find-and-replace)
 
-```ts
-import { createClient } from '@pgbo/client'
-
-const pgbo = createClient({
-  baseUrl: 'http://localhost:3000',
-  locale: () => 'en',
-  getAuthHeader: () => `Bearer ${token}`,
-})
-
-await pgbo.list('warehouse', { search: 'main' })
-await pgbo.create('warehouse', { name: 'X' })
-await pgbo.action<Blob>('doc', 'pdf', { id: 1 }, { responseType: 'blob' })
-const uoms = await pgbo.valueHelp('product', 'uom')
+```diff
+- import { createClient, PgboClientError } from '@pgbo/client'
++ import { createClient, MetadataUiClientError } from '@metadataui/client'
 ```
 
-Full reference: https://tim-riep.github.io/pgbo/client
+The API is identical. Only the package name and the error class name changed.
+
+## What this version does
+
+`@pgbo/client@0.3.0` re-exports everything from `@metadataui/client` and aliases `PgboClientError` to `MetadataUiClientError`. A one-time `console.warn` notes the deprecation. The next major will remove this package entirely.
 
 ## License
 

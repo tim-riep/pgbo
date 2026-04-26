@@ -52,8 +52,18 @@ jobs:
 
       - run: npm ci
 
-      - name: Build @pgbo/core (needed for adapter typecheck)
+      # Build packages in dependency order so each package's `dist/` is
+      # available when the next package's tsc resolves its types:
+      #   @metadataui/spec → @pgbo/core → @metadataui/client → @pgbo/fastify
+      # (deprecation shim @pgbo/client only needs @metadataui/client built.)
+      - name: Build @metadataui/spec (foundation for everything)
+        run: npm run build -w @metadataui/spec
+
+      - name: Build @pgbo/core (needs spec; adapter typecheck needs it)
         run: npm run build -w @pgbo/core
+
+      - name: Build @metadataui/client (needs spec)
+        run: npm run build -w @metadataui/client
 
       - run: npm run lint
 

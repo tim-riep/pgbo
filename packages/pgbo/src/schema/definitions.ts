@@ -141,12 +141,10 @@ export interface TableInput {
 
 // --- Field annotations ---
 
-export type FieldKind = 'text' | 'number' | 'date' | 'boolean' | 'slug' | 'relation' | 'translation'
-
-export interface FilterOption {
-  readonly value: string
-  readonly label: string
-}
+// Re-export from @metadataui/spec so the field-kind contract has a single
+// source of truth across server (pgbo) and client (metadataui-client).
+import type { FieldKind, FilterOption } from '@metadataui/spec'
+export type { FieldKind, FilterOption }
 
 export interface FieldAnnotations {
   readonly label?: string

@@ -1,7 +1,7 @@
 {
   "name": "@pgbo/client",
-  "version": "0.2.0",
-  "description": "Framework-agnostic HTTP client for pgbo — URL composition, typed fetch, metadata cache",
+  "version": "0.3.0",
+  "description": "DEPRECATED — renamed to @metadataui/client. This package re-exports from @metadataui/client during the deprecation cycle.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,11 +21,7 @@
   "keywords": [
     "pgbo",
     "client",
-    "fetch",
-    "http",
-    "metadata",
-    "frontend",
-    "business-objects"
+    "deprecated"
   ],
   "author": "Tim Riep <tim@riep-tech.de>",
   "license": "MIT",
@@ -50,7 +46,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@pgbo/core": "1.0.0"
+    "@metadataui/client": "1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createClient, PgboClientError } from '../src/index.js'
+import { createClient, MetadataUiClientError } from '../src/index.js'
 
 /** Minimal Response stub backed by a body + status. */
 function jsonResponse(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}): Response {
@@ -68,15 +68,15 @@ describe('createClient — request basics', () => {
     expect(fetchMock.mock.calls[1]![1].method).toBe('DELETE')
   })
 
-  it('throws PgboClientError on non-2xx with the parsed body attached', async () => {
+  it('throws MetadataUiClientError on non-2xx with the parsed body attached', async () => {
     fetchMock.mockResolvedValueOnce(errorResponse(404, { error: 'Not found' }))
     const client = createClient({ baseUrl: 'http://api', fetch: fetchMock as unknown as typeof fetch })
     try {
       await client.detail('warehouse', 'x')
       throw new Error('should not reach here')
     } catch (e) {
-      expect(e).toBeInstanceOf(PgboClientError)
-      const err = e as PgboClientError
+      expect(e).toBeInstanceOf(MetadataUiClientError)
+      const err = e as MetadataUiClientError
       expect(err.status).toBe(404)
       expect(err.url).toBe('http://api/bo/warehouse/x')
       expect(err.body).toEqual({ error: 'Not found' })
@@ -122,7 +122,7 @@ describe('createClient — meta cache', () => {
       .mockResolvedValueOnce(errorResponse(500))
       .mockResolvedValueOnce(jsonResponse({ name: 'x', fields: [], paramField: 'id', readOnly: false, associations: [], compositions: [], valueHelps: [] }))
     const client = createClient({ baseUrl: 'http://api', fetch: fetchMock as unknown as typeof fetch })
-    await expect(client.meta('x')).rejects.toBeInstanceOf(PgboClientError)
+    await expect(client.meta('x')).rejects.toBeInstanceOf(MetadataUiClientError)
     const second = await client.meta('x')
     expect(second.name).toBe('x')
     expect(fetchMock).toHaveBeenCalledTimes(2)
