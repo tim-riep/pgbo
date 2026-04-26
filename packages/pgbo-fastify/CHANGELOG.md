@@ -1,5 +1,31 @@
 # @pgbo/fastify
 
+## 3.1.0
+
+### Minor Changes
+
+- 49c44b6: Rebrand `@pgbo/client` → `@metadataui/*` (closes #52). The metadata-driven UI contract is independent of pgbo, so it now lives under a vendor-neutral namespace.
+
+  ### What changed in `@pgbo/fastify`
+
+  - `FileResponse` re-exports from `@metadataui/spec` — same shape, single source of truth across server (pgbo-fastify) and client (metadataui-client).
+  - Adds `@metadataui/spec` as a dependency.
+  - `transformProjectionMeta` continues to return the `PublicBoMeta` shape, now imported from spec.
+
+  No source-level migration required. Existing `import { FileResponse } from '@pgbo/fastify'` keeps working.
+
+  ### Companion releases
+
+  - **`@metadataui/spec@1.0.0`** — the contract. Pure types + URL builders + status-code semantics. Zero runtime deps.
+  - **`@metadataui/client@1.0.0`** — drop-in replacement for `@pgbo/client`.
+  - **`@pgbo/core@1.1.0`** — re-exports metadata types from `@metadataui/spec`.
+  - **`@pgbo/client@0.3.0`** — deprecated re-export shim.
+
+### Patch Changes
+
+- Updated dependencies [49c44b6]
+  - @pgbo/core@1.1.0
+
 ## 3.0.0
 
 ### Major Changes

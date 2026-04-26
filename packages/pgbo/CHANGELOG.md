@@ -1,5 +1,29 @@
 # @pgbo/core
 
+## 1.1.0
+
+### Minor Changes
+
+- 49c44b6: Rebrand `@pgbo/client` → `@metadataui/*` (closes #52). The metadata-driven UI contract — URL conventions, response shapes, status-code semantics — is independent of pgbo, so it now lives under a vendor-neutral namespace. Other backends (Spring, Go, hand-rolled REST) can implement it without taking pgbo as a dependency.
+
+  ### What changed in `@pgbo/core`
+
+  - `metadata/types.ts` re-exports the wire-protocol types (`FieldMeta`, `BOMeta`, `ViewMeta`, `FilterMeta`, `ValueHelpRef`, `ValueHelpMeta`, `CompositionMeta`, `AssociationMeta`, `EnrichConfig`) from `@metadataui/spec`.
+  - `FieldKind` and `FilterOption` re-export from `@metadataui/spec` too — kept available from `@pgbo/core/schema` and `@pgbo/core/metadata` for backward compat.
+  - `ListParams` and `PaginatedResult` in `@pgbo/core/query` re-export from `@metadataui/spec`.
+  - Adds `@metadataui/spec` as a dependency.
+
+  ### Backward compatibility
+
+  All existing import paths still resolve. Code that imports `FieldMeta` from `@pgbo/core/metadata` (or `FieldKind` from `@pgbo/core/schema`) keeps working — those names now point at `@metadataui/spec` types but the resolution is invisible to consumers.
+
+  ### Companion releases
+
+  - **`@metadataui/spec@1.0.0`** — new vendor-neutral package. Pure types + URL builders + status-code semantics.
+  - **`@metadataui/client@1.0.0`** — new package. Drop-in replacement for `@pgbo/client`.
+  - **`@pgbo/fastify@3.1.0`** — `FileResponse` re-exports from `@metadataui/spec`.
+  - **`@pgbo/client@0.3.0`** — deprecated; re-exports `@metadataui/client`. Will be removed in the next major.
+
 ## 1.0.0
 
 ### Major Changes
