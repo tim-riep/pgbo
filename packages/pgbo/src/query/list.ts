@@ -1,22 +1,12 @@
-// Standardised list params parsing and pagination (issue 024)
+// Standardised list params parsing and pagination (issue 024).
+//
+// `ListParams` and `PaginatedResult` are part of the metadata-driven UI contract
+// and live in `@metadataui/spec`. We re-export them here so existing imports
+// from `@pgbo/core/query` keep working and `parseListParams` returns the same
+// type any client expects.
 
-export interface ListParams {
-  readonly page: number
-  readonly limit: number
-  readonly search: string
-  readonly sort: string | null
-  readonly order: 'asc' | 'desc'
-  readonly filters: Readonly<Record<string, string>>
-  readonly locale: string
-  readonly fields: readonly string[] | null
-}
-
-export interface PaginatedResult<T> {
-  readonly items: readonly T[]
-  readonly total: number
-  readonly page: number
-  readonly limit: number
-}
+export type { ListParams, PaginatedResult } from '@metadataui/spec'
+import type { ListParams } from '@metadataui/spec'
 
 /**
  * Parse a query string object (e.g. from `req.query`) into standardised list params.

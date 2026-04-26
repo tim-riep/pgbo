@@ -1,21 +1,34 @@
-# HTTP Client — `@pgbo/client`
+# HTTP Client — `@metadataui/client`
 
-`@pgbo/client` is the framework-agnostic HTTP layer for pgbo. It owns the URL schema, pagination contract, metadata cache, and auth integration — so frontend code stops re-implementing them per project.
+`@metadataui/client` is the framework-agnostic HTTP client for the [metadata-driven UI contract](metadataui-spec). It owns the URL schema, pagination contract, metadata cache, and auth integration — so frontend code stops re-implementing them per project.
 
-No React, no Vue, no UI components — just `fetch` wrapped with the things every pgbo frontend needs.
+The contract is independent of any specific backend: `@pgbo/fastify` is one implementation, but any HTTP server that conforms to [`@metadataui/spec`](metadataui-spec) works with this client.
+
+No React, no Vue, no UI components — just `fetch` wrapped with the things every metadata-driven frontend needs.
 
 ## Install
 
 ```bash
-npm install @pgbo/client
+npm install @metadataui/client
 ```
 
-The package re-exports the structural types from `@pgbo/core`, so frontends never import the server package (which pulls in `pg`).
+The package depends on `@metadataui/spec` for types and URL builders. There is **no** `@pgbo/core` dependency — frontends pull zero server-side code (no `pg`, no migration engine, etc.).
+
+::: info Migrating from `@pgbo/client`?
+The `@pgbo/client` package is deprecated and renamed to `@metadataui/client` (issue #52). Migration is one find-and-replace:
+
+```diff
+- import { createClient, PgboClientError } from '@pgbo/client'
++ import { createClient, MetadataUiClientError } from '@metadataui/client'
+```
+
+The API is identical.
+:::
 
 ## Quick start
 
 ```typescript
-import { createClient } from '@pgbo/client'
+import { createClient } from '@metadataui/client'
 
 const pgbo = createClient({
   baseUrl: 'http://localhost:3000',
@@ -187,27 +200,27 @@ await pgbo.list('warehouse', { locale: 'de' })  // /bo/warehouse?locale=de
 | `view()` | `T[]` — unwrapped |
 | `viewPaged()` | `PaginatedResult<T>` |
 
-## Errors — `PgboClientError`
+## Errors — `MetadataUiClientError`
 
-Non-2xx responses throw `PgboClientError` with the parsed body attached:
+Non-2xx responses throw `MetadataUiClientError` with the parsed body attached:
 
 ```typescript
-import { PgboClientError } from '@pgbo/client'
+import { MetadataUiClientError } from '@metadataui/client'
 
 try {
   await pgbo.detail('warehouse', 'nonexistent')
 } catch (e) {
-  if (e instanceof PgboClientError) {
+  if (e instanceof MetadataUiClientError) {
     console.error(e.status, e.url, e.body)   // 404, full URL, parsed JSON body
   }
 }
 ```
 
-`PgboClientError.body` is whatever the server returned — for pgbo's standard 404/403 it's `{ error: 'Not found' }`; for custom action errors it's whatever your handler threw.
+`MetadataUiClientError.body` is whatever the server returned — for pgbo's standard 404/403 it's `{ error: 'Not found' }`; for custom action errors it's whatever your handler threw.
 
 ## Re-exported types
 
-`@pgbo/client` re-exports the metadata/query types from `@pgbo/core` so frontends use a single import path:
+`@metadataui/client` re-exports the metadata/query types from `@pgbo/core` so frontends use a single import path:
 
 ```typescript
 import type {
@@ -216,12 +229,12 @@ import type {
   FieldKind, FilterOption,
   ListParams, PaginatedResult,
   PublicBoMeta, PublicFieldMeta, PublicFilterMeta, PublicValueHelpRef,
-} from '@pgbo/client'
+} from '@metadataui/client'
 ```
 
 The `Public*` variants are the response shapes after `@pgbo/fastify`'s `/meta/:name` transform (i.e. with `labelKey` populated and `valueHelp.endpoint` resolved to absolute URLs).
 
-## What `@pgbo/client` deliberately does NOT do
+## What `@metadataui/client` deliberately does NOT do
 
 - **No framework-specific bindings** — React hooks, Vue composables, Svelte stores belong in separate packages on top of this one.
 - **No UI components** — tables, forms, dropdowns are app concerns.

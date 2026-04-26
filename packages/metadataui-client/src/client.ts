@@ -1,20 +1,19 @@
-// HTTP client for pgbo (issue #46). Framework-agnostic — wraps `fetch`, knows
-// pgbo's URL schema and pagination contract, caches metadata, retries once on 401.
+// HTTP client for the metadata-driven UI contract. Framework-agnostic — wraps
+// `fetch`, knows the URL schema and pagination contract, caches metadata,
+// retries once on 401.
 
-import type {
-  PaginatedResult,
-} from '@pgbo/core/query'
+import type { PaginatedResult } from '@metadataui/spec'
 import {
   urlForProjection, urlForDetail, urlForAction, urlForValueHelp,
   urlForMeta, urlForView, urlForViewMeta, buildQueryString,
-} from './urls.js'
+} from '@metadataui/spec'
 import type {
   ClientConfig, ListQuery, PublicBoMeta, ActionOptions,
 } from './types.js'
-import { PgboClientError } from './types.js'
+import { MetadataUiClientError } from './types.js'
 
 /** Public client surface returned by `createClient`. */
-export interface PgboClient {
+export interface MetadataUiClient {
   /** GET `/meta/{name}` — cached. Subsequent calls return the same Promise. */
   meta(projection: string): Promise<PublicBoMeta>
   /** Drop the cached metadata for a projection so the next `meta()` re-fetches. */
@@ -74,8 +73,8 @@ export interface PgboClient {
   viewMeta(view: string): Promise<unknown>
 }
 
-/** Create a configured pgbo HTTP client. */
-export function createClient(config: ClientConfig): PgboClient {
+/** Create a configured metadata-UI HTTP client. */
+export function createClient(config: ClientConfig): MetadataUiClient {
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis)
   const metaCache = new Map<string, Promise<PublicBoMeta>>()
 
@@ -122,8 +121,8 @@ export function createClient(config: ClientConfig): PgboClient {
       try {
         body = await res.json() as unknown
       } catch { /* non-JSON error body */ }
-      throw new PgboClientError(
-        `pgbo: ${init.method} ${url} failed with ${res.status}`,
+      throw new MetadataUiClientError(
+        `metadataui: ${init.method} ${url} failed with ${res.status}`,
         res.status, url, body,
       )
     }
@@ -154,7 +153,7 @@ export function createClient(config: ClientConfig): PgboClient {
       if (!pending) {
         pending = (get(urlForMeta(config.baseUrl, projection)) as Promise<PublicBoMeta>)
           .catch((err: unknown) => {
-            metaCache.delete(projection)  // don't cache failures
+            metaCache.delete(projection)
             throw err
           })
         metaCache.set(projection, pending)

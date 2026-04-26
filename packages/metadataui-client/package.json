@@ -1,7 +1,7 @@
 {
-  "name": "@pgbo/fastify",
-  "version": "3.1.0",
-  "description": "Fastify route factory for pgbo Business Objects — CRUD, metadata, value helps, pagination",
+  "name": "@metadataui/client",
+  "version": "1.0.0",
+  "description": "Framework-agnostic HTTP client for the metadata-driven UI contract — URL composition, typed fetch, metadata cache",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,11 +19,13 @@
     "lint": "eslint src tests"
   },
   "keywords": [
-    "pgbo",
-    "fastify",
-    "crud",
-    "route-factory",
-    "business-objects"
+    "metadata",
+    "ui",
+    "client",
+    "fetch",
+    "http",
+    "frontend",
+    "crud"
   ],
   "author": "Tim Riep <tim@riep-tech.de>",
   "license": "MIT",
@@ -38,7 +40,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tim-riep/pgbo.git",
-    "directory": "packages/pgbo-fastify"
+    "directory": "packages/metadataui-client"
   },
   "bugs": {
     "url": "https://github.com/tim-riep/pgbo/issues"
@@ -48,16 +50,11 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@metadataui/spec": "1.0.0",
-    "@pgbo/core": "1.1.0"
-  },
-  "peerDependencies": {
-    "fastify": "^5.0.0"
+    "@metadataui/spec": "1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.2.1",
-    "fastify": "^5.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"

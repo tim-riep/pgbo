@@ -1,97 +1,30 @@
-// Metadata type definitions
+// Metadata type definitions.
+//
+// Wire-protocol shapes live in `@metadataui/spec` so they can be shared with
+// any client (browser, codegen, third-party backend implementations). This
+// file re-exports them under their existing names + adds the pgbo-specific
+// `TranslationConfig` that uses `TableDef`.
 
-import type { FieldKind, FilterOption, TableDef } from '../schema/definitions.js'
+import type { TableDef } from '../schema/definitions.js'
 
-export interface FilterMeta {
-  readonly type: 'text' | 'date' | 'select' | 'relation'
-  readonly endpoint?: string
-  readonly valueField?: string
-  readonly labelField?: string
-  readonly options?: readonly FilterOption[]
-}
+export type {
+  FilterMeta,
+  ValueHelpRef,
+  FieldMeta,
+  AssociationMeta,
+  ViewMeta,
+  CompositionMeta,
+  ValueHelpMeta,
+  BOMeta,
+  EnrichConfig,
+  // Re-export FieldKind + FilterOption too so consumers don't need a second import path
+  FieldKind,
+  FilterOption,
+} from '@metadataui/spec'
 
-/**
- * Reference from a field to a value-help endpoint (issue #35). Set when a column
- * is annotated with `.valueHelp(vhView)` and the surrounding BO registers that
- * view in `valueHelps`. Lets metadata-driven forms render the field as a dropdown
- * without per-app wiring.
- */
-export interface ValueHelpRef {
-  /**
-   * Key under `bo.valueHelps` — the URL segment Fastify uses for the route.
-   * Same value is used for the metadata's top-level `valueHelps[].name`.
-   */
-  readonly name: string
-  /** Column on the value-help view that holds the identifier (`.vh({ key })`). */
-  readonly keyField: string
-  /** Column on the value-help view that holds the human-readable label (`.vh({ display })`). */
-  readonly displayField: string
-  /**
-   * Full HTTP path. Populated by `@pgbo/fastify`'s projection-aware transform
-   * (`/bo/{projection.name}/valueHelp/{name}`); undefined when reading the raw
-   * `boMeta()` output without projection context.
-   */
-  readonly endpoint?: string
-}
-
-export interface FieldMeta {
-  readonly key: string
-  readonly kind: FieldKind
-  readonly label: string | undefined
-  readonly hidden: boolean
-  readonly immutable: boolean
-  readonly searchable: boolean
-  readonly filterable: false | FilterMeta
-  readonly valueHelp?: ValueHelpRef
-  readonly inList: boolean
-  readonly inForm: boolean
-  readonly required: boolean
-  readonly quick: boolean
-}
-
-export interface AssociationMeta {
-  readonly name: string
-  readonly foreignKey: string
-  readonly target?: string
-}
-
-export interface ViewMeta {
-  readonly name: string
-  readonly fields: readonly FieldMeta[]
-  readonly associations: readonly AssociationMeta[]
-}
-
-export interface CompositionMeta {
-  readonly name: string
-  readonly fields: readonly string[]
-}
-
-export interface ValueHelpMeta {
-  readonly name: string
-  readonly fields: readonly FieldMeta[]
-}
-
-export interface BOMeta extends ViewMeta {
-  readonly paramField: string
-  readonly readOnly: boolean
-  readonly compositions: readonly CompositionMeta[]
-  readonly valueHelps: readonly ValueHelpMeta[]
-  readonly orderBy?: string
-  readonly orderDir?: 'asc' | 'desc'
-  readonly cacheTags?: readonly string[]
-}
-
+/** pgbo-specific — uses the server-only `TableDef` for the translation table. */
 export interface TranslationConfig {
   readonly table: TableDef
   readonly parentKey: string
   readonly fields: readonly string[]
-}
-
-export interface EnrichConfig {
-  readonly translationTable: string
-  readonly parentKey: string
-  readonly idField: string
-  readonly fields: readonly string[]
-  readonly locale: string
-  readonly fallbackLocale?: string
 }
