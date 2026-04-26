@@ -1,5 +1,24 @@
 # @pgbo/client
 
+## 0.3.0
+
+### Minor Changes — DEPRECATED
+
+- 49c44b6: **`@pgbo/client` is renamed to `@metadataui/client`** (closes #52). This release is a deprecation shim: it re-exports everything from `@metadataui/client` and aliases `PgboClientError → MetadataUiClientError`. A one-time `console.warn` fires at module load. **The next major will remove this package.**
+
+  ### Migration (one find-and-replace)
+
+  ```diff
+  - import { createClient, PgboClientError } from '@pgbo/client'
+  + import { createClient, MetadataUiClientError } from '@metadataui/client'
+  ```
+
+  The runtime API is identical. After upgrading, drop `@pgbo/client` from `package.json` and add `@metadataui/client`.
+
+  ### Why the rename
+
+  The metadata-driven UI contract — URL conventions, response shapes, status-code semantics — is independent of pgbo. It now lives under a vendor-neutral namespace so other backends (Spring, Go, hand-rolled REST) can implement it without taking pgbo as a dependency.
+
 ## 0.2.0
 
 ### Minor Changes
