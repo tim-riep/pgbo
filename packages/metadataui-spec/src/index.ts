@@ -6,7 +6,7 @@
 
 export type {
   // Field metadata
-  FieldKind, FilterOption, FilterMeta, ValueHelpRef, FieldMeta,
+  FieldKind, FilterOption, FilterMeta, ValueHelpRef, FieldMeta, VisibleWhen,
   // Aggregate metadata
   AssociationMeta, CompositionMeta, ValueHelpMeta, ViewMeta, BOMeta,
   // Public (post-transform) shapes
@@ -17,9 +17,13 @@ export type {
   FileResponse,
   // Translation enrichment
   TranslationConfig, EnrichConfig,
+  // Composite key (issue #51)
+  CompositeKey,
 } from './types.js'
 
 export {
   urlForProjection, urlForDetail, urlForAction, urlForValueHelp,
   urlForMeta, urlForView, urlForViewMeta, buildQueryString,
+  // Composite-key URL helpers (issue #51)
+  formatCompositeKey, parseCompositeKey,
 } from './urls.js'

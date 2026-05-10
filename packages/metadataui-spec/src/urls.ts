@@ -31,9 +31,122 @@ export function urlForProjection(base: string, projection: string): string {
   return `${trimBase(base)}/bo/${projection}`
 }
 
-/** `{base}/bo/{projection}/{paramValue}` — detail / update / delete endpoint. */
-export function urlForDetail(base: string, projection: string, paramValue: string | number): string {
-  return `${trimBase(base)}/bo/${projection}/${encodeURIComponent(String(paramValue))}`
+/**
+ * `{base}/bo/{projection}/{paramValue}` — detail / update / delete endpoint.
+ *
+ * For BOs with a composite key (`paramField` is an array), pass an object
+ * mapping each key column to its value: `urlForDetail(base, name, { slug: 'A1', warehouseSlug: 'WH-1' })`.
+ * The result uses OData-style syntax: `{base}/bo/{projection}/(slug='A1',warehouseSlug='WH-1')`.
+ *
+ * For single-key BOs, pass a string or number directly.
+ */
+export function urlForDetail(
+  base: string,
+  projection: string,
+  paramValue: string | number | Readonly<Record<string, string | number>>,
+): string {
+  const prefix = `${trimBase(base)}/bo/${projection}`
+  if (typeof paramValue === 'object') {
+    return `${prefix}/${formatCompositeKey(paramValue)}`
+  }
+  return `${prefix}/${encodeURIComponent(String(paramValue))}`
+}
+
+/**
+ * Format a composite-key record as the OData-style URL segment
+ * `(k1='v1',k2='v2')`. String values are single-quoted with embedded `'`
+ * doubled (`O''Brien`); numeric values are emitted bare. Reserved characters
+ * inside values are URL-encoded.
+ *
+ * The inverse of `parseCompositeKey`.
+ */
+export function formatCompositeKey(key: Readonly<Record<string, string | number>>): string {
+  const keys = Object.keys(key)
+  if (keys.length === 0) {
+    throw new Error('formatCompositeKey: composite key must have at least one entry')
+  }
+  const parts: string[] = []
+  for (const k of keys) {
+    const v = key[k]
+    if (typeof v === 'number') {
+      parts.push(`${encodeURIComponent(k)}=${v}`)
+    } else if (typeof v === 'string') {
+      // Double single quotes inside the value (OData escape), then URL-encode.
+      const escaped = v.replace(/'/g, "''")
+      parts.push(`${encodeURIComponent(k)}='${encodeURIComponent(escaped)}'`)
+    } else {
+      throw new Error(`formatCompositeKey: value for "${k}" must be a string or number`)
+    }
+  }
+  return `(${parts.join(',')})`
+}
+
+/**
+ * Parse the OData-style URL segment `(k1='v1',k2='v2')` back into a record.
+ * Strings are recognised by surrounding single quotes (with `''` decoded back
+ * to `'`); bare values are coerced to numbers when they're numeric, otherwise
+ * left as strings.
+ *
+ * Throws on malformed input. The inverse of `formatCompositeKey`.
+ */
+export function parseCompositeKey(input: string): Record<string, string | number> {
+  if (!input.startsWith('(') || !input.endsWith(')')) {
+    throw new Error(`parseCompositeKey: expected "(k1='v1',...)", got "${input}"`)
+  }
+  const body = input.slice(1, -1)
+  if (body.length === 0) {
+    throw new Error('parseCompositeKey: empty composite key "()"')
+  }
+  const result: Record<string, string | number> = {}
+  for (const part of splitTopLevelCommas(body)) {
+    const eq = part.indexOf('=')
+    if (eq === -1) {
+      throw new Error(`parseCompositeKey: missing "=" in "${part}"`)
+    }
+    const rawKey = part.slice(0, eq)
+    const rawValue = part.slice(eq + 1)
+    if (rawKey.length === 0) {
+      throw new Error(`parseCompositeKey: empty key in "${part}"`)
+    }
+    const key = decodeURIComponent(rawKey)
+    if (rawValue.startsWith("'") && rawValue.endsWith("'") && rawValue.length >= 2) {
+      // String literal: strip quotes, undouble inner quotes, URL-decode
+      const inner = rawValue.slice(1, -1).replace(/''/g, "'")
+      result[key] = decodeURIComponent(inner)
+    } else {
+      // Bare value — must parse as a finite number
+      const n = Number(rawValue)
+      if (rawValue === '' || !Number.isFinite(n)) {
+        throw new Error(`parseCompositeKey: value for "${key}" must be a quoted string or a number, got "${rawValue}"`)
+      }
+      result[key] = n
+    }
+  }
+  return result
+}
+
+/** Split a body string on commas that aren't inside single-quoted segments
+ *  (treating `''` as an escaped quote). */
+function splitTopLevelCommas(body: string): string[] {
+  const parts: string[] = []
+  let inQuotes = false
+  let start = 0
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]
+    if (ch === "'") {
+      // Doubled '' inside quotes is an escape — skip the second one
+      if (inQuotes && body[i + 1] === "'") {
+        i++
+        continue
+      }
+      inQuotes = !inQuotes
+    } else if (!inQuotes && ch === ',') {
+      parts.push(body.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(body.slice(start))
+  return parts
 }
 
 /** `{base}/bo/{projection}/{action}` — custom action endpoint. */

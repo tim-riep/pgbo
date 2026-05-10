@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   urlForProjection, urlForDetail, urlForAction, urlForValueHelp,
   urlForMeta, urlForView, urlForViewMeta, buildQueryString,
+  formatCompositeKey, parseCompositeKey,
 } from '../src/urls.js'
 
 describe('URL builders', () => {
@@ -64,5 +65,88 @@ describe('buildQueryString', () => {
 
   it('encodes special characters', () => {
     expect(buildQueryString({ search: 'foo bar&baz' })).toBe('?search=foo%20bar%26baz')
+  })
+})
+
+describe('formatCompositeKey', () => {
+  it('formats string values with single quotes', () => {
+    expect(formatCompositeKey({ slug: 'A1', warehouseSlug: 'WH-1' }))
+      .toBe("(slug='A1',warehouseSlug='WH-1')")
+  })
+
+  it('emits numeric values bare', () => {
+    expect(formatCompositeKey({ id: 42, slug: 'main' }))
+      .toBe("(id=42,slug='main')")
+  })
+
+  it('doubles embedded single quotes inside string values', () => {
+    expect(formatCompositeKey({ name: "O'Brien" }))
+      .toBe("(name='O''Brien')")
+  })
+
+  it('URL-encodes reserved characters in string values', () => {
+    expect(formatCompositeKey({ slug: 'foo bar&baz' }))
+      .toBe("(slug='foo%20bar%26baz')")
+  })
+
+  it('throws on an empty key object', () => {
+    expect(() => formatCompositeKey({})).toThrow(/at least one entry/)
+  })
+})
+
+describe('parseCompositeKey', () => {
+  it('parses string values', () => {
+    expect(parseCompositeKey("(slug='A1',warehouseSlug='WH-1')"))
+      .toEqual({ slug: 'A1', warehouseSlug: 'WH-1' })
+  })
+
+  it('parses numeric values as numbers', () => {
+    expect(parseCompositeKey("(id=42,slug='main')"))
+      .toEqual({ id: 42, slug: 'main' })
+  })
+
+  it('decodes doubled single quotes inside string values', () => {
+    expect(parseCompositeKey("(name='O''Brien')"))
+      .toEqual({ name: "O'Brien" })
+  })
+
+  it('decodes URL-encoded characters inside string values', () => {
+    expect(parseCompositeKey("(slug='foo%20bar%26baz')"))
+      .toEqual({ slug: 'foo bar&baz' })
+  })
+
+  it('round-trips through formatCompositeKey', () => {
+    const original = { slug: 'A1', kind: "O'Brien", count: 7 }
+    expect(parseCompositeKey(formatCompositeKey(original))).toEqual(original)
+  })
+
+  it('throws when the input is not wrapped in parens', () => {
+    expect(() => parseCompositeKey("slug='A1'")).toThrow(/expected/)
+  })
+
+  it('throws on an empty body "()"', () => {
+    expect(() => parseCompositeKey('()')).toThrow(/empty/)
+  })
+
+  it('throws when a part is missing "="', () => {
+    expect(() => parseCompositeKey("(slug'A1')")).toThrow(/missing "="/)
+  })
+
+  it('throws when a bare value is not numeric', () => {
+    expect(() => parseCompositeKey('(slug=abc)')).toThrow(/quoted string or a number/)
+  })
+})
+
+describe('urlForDetail with composite keys', () => {
+  const base = 'http://localhost:3000'
+
+  it('uses OData-style key syntax for composite-key objects', () => {
+    expect(urlForDetail(base, 'storageLocation', { slug: 'A1', warehouseSlug: 'WH-1' }))
+      .toBe("http://localhost:3000/bo/storageLocation/(slug='A1',warehouseSlug='WH-1')")
+  })
+
+  it('encodes reserved characters inside composite-key values', () => {
+    expect(urlForDetail(base, 'storageLocation', { slug: 'has space' }))
+      .toBe("http://localhost:3000/bo/storageLocation/(slug='has%20space')")
   })
 })

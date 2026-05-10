@@ -3,6 +3,7 @@
 import type { Database } from '../query/client.js'
 import type { TableDef } from '../schema/definitions.js'
 import type { BusinessObjectDef, ActionContext } from './types.js'
+import { paramFieldList, keyToWhere } from './composite-key.js'
 
 function getTable(bo: BusinessObjectDef): TableDef {
   const root = bo.root
@@ -99,7 +100,11 @@ export async function executeAction(
         const compTable = plain.table ?? plain.view?.source
         if (!compTable) continue
 
-        const parentKeyValue = (result as Record<string, unknown>)[bo.paramField]
+        // Composition parentKey resolves against a single column even when the
+        // BO uses a composite key — only one column is the FK that links children.
+        // defineBO already rejects an empty paramField array, so [0] is defined.
+        const parentJoinCol = typeof bo.paramField === 'string' ? bo.paramField : bo.paramField[0] ?? ''
+        const parentKeyValue = (result as Record<string, unknown>)[parentJoinCol]
         for (const childRow of compData as Record<string, unknown>[]) {
           const childData = { ...childRow, [plain.parentKey]: parentKeyValue }
           await db._table.into(compTable).values(childData).execute()
@@ -109,7 +114,15 @@ export async function executeAction(
       break
     }
     case 'update': {
-      const { [bo.paramField]: paramValue, ...rawUpdateData } = data
+      // Split data into key columns (used in WHERE) and update payload, in a
+      // composite-key-aware way (issue #51).
+      const keyCols = paramFieldList(bo.paramField)
+      const rawUpdateData: Record<string, unknown> = {}
+      const keyValues: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(data)) {
+        if (keyCols.includes(k)) keyValues[k] = v
+        else rawUpdateData[k] = v
+      }
       // Strip any client-supplied system-managed values, then auto-stamp every
       // `updatedAt` column with `now()` so the timestamp actually advances on
       // each write (issue #61).
@@ -119,7 +132,7 @@ export async function executeAction(
 
       const rows = await db._table.update(table)
         .set(cleaned)
-        .where({ [bo.paramField]: paramValue })
+        .where(keyToWhere(bo.paramField, keyValues))
         .returning('*')
         .execute()
       result = rows[0]
@@ -127,7 +140,7 @@ export async function executeAction(
     }
     case 'delete': {
       const rows = await db._table.deleteFrom(table)
-        .where({ [bo.paramField]: data[bo.paramField] })
+        .where(keyToWhere(bo.paramField, data))
         .returning('*')
         .execute()
       result = rows[0]

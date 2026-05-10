@@ -128,6 +128,9 @@ function buildFieldMeta(
     required: isSystemManaged ? false : (annotations.required ?? false),
     quick: annotations.quick ?? false,
     ...(systemManaged && { systemManaged }),
+    // Issue #62 — surface the discriminator-aware visibility predicate so
+    // metadata-driven forms can hide irrelevant fields based on form state.
+    ...(annotations.visibleWhen && { visibleWhen: annotations.visibleWhen }),
   }
 }
 

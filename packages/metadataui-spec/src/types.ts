@@ -24,6 +24,27 @@ export interface FilterMeta {
   readonly options?: readonly FilterOption[]
 }
 
+/**
+ * Discriminator-aware field-visibility predicate (issue #62). Set by
+ * `col(...).visibleWhen({ kind: 'esm_upload' })` on the server. The frontend
+ * evaluates this against the current form state on every change and shows or
+ * hides the field accordingly.
+ *
+ * Single value:    `{ kind: 'esm_upload' }`            (equality)
+ * Multi-value:     `{ kind: ['esm_upload', 'iframe'] }` (OR — value ∈ list)
+ * Multi-condition: `{ kind: 'iframe', requiresAuth: true }` (AND across keys)
+ *
+ * `required` and `visibleWhen` compose: a field that's both required and
+ * visibleWhen means "required when visible." Frontends should skip required
+ * validation while the field is hidden, and strip hidden fields from the
+ * submit payload so toggling the discriminator doesn't carry stale data.
+ */
+// Each entry is either a single scalar (string / number / boolean) the field's
+// own value must equal, or a `readonly` array of allowed scalars. Typed as
+// `unknown` because TS would collapse the union with `readonly unknown[]` to
+// `unknown` anyway — frontends should narrow at the call site.
+export type VisibleWhen = Readonly<Record<string, unknown>>
+
 /** Reference from a field to its value-help endpoint — drives metadata-driven dropdowns. */
 export interface ValueHelpRef {
   /** Key under the BO's `valueHelps` map — the URL segment in `/bo/{name}/valueHelp/{key}`. */
@@ -58,6 +79,12 @@ export interface FieldMeta {
    * and strip these fields from incoming payloads.
    */
   readonly systemManaged?: 'createdAt' | 'updatedAt'
+  /**
+   * Discriminator-aware visibility predicate (issue #62). When set, the
+   * frontend evaluates these key/value pairs against the current form state
+   * to decide whether to render the field. See `VisibleWhen` for semantics.
+   */
+  readonly visibleWhen?: VisibleWhen
 }
 
 // --- Aggregate metadata ---
@@ -85,7 +112,15 @@ export interface ViewMeta {
 }
 
 export interface BOMeta extends ViewMeta {
-  readonly paramField: string
+  /**
+   * Identifier column(s) for the BO. A single string for the common case
+   * (`'id'`, `'slug'`); a tuple for composite keys (issue #51).
+   *
+   * Frontends switch URL form based on this:
+   * - `string` → `/bo/{name}/{value}`
+   * - `string[]` → `/bo/{name}/(k1='v1',k2='v2')` (OData-style)
+   */
+  readonly paramField: string | readonly string[]
   readonly readOnly: boolean
   readonly compositions: readonly CompositionMeta[]
   readonly valueHelps: readonly ValueHelpMeta[]
@@ -129,12 +164,15 @@ export interface PublicFieldMeta {
   readonly quick: boolean
   /** System-managed timestamp marker (issue #61). See `FieldMeta.systemManaged`. */
   readonly systemManaged?: 'createdAt' | 'updatedAt'
+  /** Discriminator-aware visibility predicate (issue #62). See `VisibleWhen`. */
+  readonly visibleWhen?: VisibleWhen
 }
 
 /** The shape returned by `GET /meta/{name}` — what frontends consume. */
 export interface PublicBoMeta {
   readonly name: string
-  readonly paramField: string
+  /** Single string for simple keys, array for composite (issue #51). */
+  readonly paramField: string | readonly string[]
   readonly readOnly: boolean
   readonly fields: readonly PublicFieldMeta[]
   readonly associations: readonly AssociationMeta[]
@@ -144,6 +182,13 @@ export interface PublicBoMeta {
   readonly orderDir?: 'asc' | 'desc'
   readonly cacheTags?: readonly string[]
 }
+
+/**
+ * A composite-key value: maps each key column to its scalar value
+ * (string or number). Used in URL composition for BOs whose `paramField`
+ * is an array (issue #51).
+ */
+export type CompositeKey = Readonly<Record<string, string | number>>
 
 // --- List query contract ---
 

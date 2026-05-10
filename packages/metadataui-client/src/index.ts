@@ -2,7 +2,7 @@
 // UI contract. Drop-in replacement for @pgbo/client (which is now deprecated).
 
 export { createClient } from './client.js'
-export type { MetadataUiClient } from './client.js'
+export type { MetadataUiClient, DetailKey } from './client.js'
 
 export {
   MetadataUiClientError,
@@ -22,4 +22,8 @@ export {
   urlForProjection, urlForDetail, urlForAction,
   urlForValueHelp, urlForMeta, urlForView, urlForViewMeta,
   buildQueryString,
+  // Composite-key helpers — issue #51
+  formatCompositeKey, parseCompositeKey,
 } from '@metadataui/spec'
+
+export type { CompositeKey } from '@metadataui/spec'

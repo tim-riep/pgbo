@@ -486,15 +486,44 @@ Annotations control UI behavior in the BO framework:
 
 ```typescript
 col('slug')
-  .label('crud.slug')          // i18n key for display label
-  .searchable()                // included in full-text search
-  .filterable()                // shows filter in UI
-  .immutable()                 // can't change after creation
-  .hidden()                    // excluded from metadata
-  .inList(false)               // hidden from list view
-  .inForm(false)               // hidden from form view
-  .valueHelp(warehouseVH)      // links to dropdown source
+  .label('crud.slug')                        // i18n key for display label
+  .searchable()                              // included in full-text search
+  .filterable()                              // shows filter in UI
+  .immutable()                               // can't change after creation
+  .hidden()                                  // excluded from metadata
+  .inList(false)                             // hidden from list view
+  .inForm(false)                             // hidden from form view
+  .valueHelp(warehouseVH)                    // links to dropdown source
+  .visibleWhen({ kind: 'esm_upload' })       // hide field unless form state matches (issue #62)
 ```
+
+### Discriminator-aware visibility (`.visibleWhen()`)
+
+Polymorphic tables typically have one column that acts as a *discriminator* (`kind`, `type`, `status`) and other columns that only apply to specific values of it. `.visibleWhen()` declares the dependency so metadata-driven forms hide irrelevant fields automatically — no per-table branching in the frontend.
+
+```typescript
+const appView = view('app_view').from(apps).columns({
+  slug:      col('slug').required().immutable(),
+  kind:      col('kind').required(),                       // the discriminator
+  name:      col('name').required(),
+  icon:      col('icon'),
+  version:   col('version').visibleWhen({ kind: 'esm_upload' }),
+  bundleRef: col('bundleRef').visibleWhen({ kind: 'esm_upload' }),
+  iframeUrl: col('iframeUrl').visibleWhen({ kind: 'iframe' }),
+})
+```
+
+The predicate accepts three shapes:
+
+| Shape | Semantics |
+|---|---|
+| `{ kind: 'iframe' }` | Equality — visible when `kind === 'iframe'` |
+| `{ kind: ['iframe', 'esm_upload'] }` | OR over the array — visible when `kind` is either |
+| `{ kind: 'iframe', requiresAuth: true }` | AND across keys — both must match |
+
+`visibleWhen` flows into `meta.fields[i].visibleWhen` so metadata-driven UIs evaluate it against the current form state on every change. **`required` composes:** `.required().visibleWhen({ kind: 'iframe' })` means *required when visible* — the frontend skips required validation while the field is hidden, and strips hidden fields from the submit payload so toggling the discriminator doesn't carry stale data.
+
+> Server-side enforcement (nulling out hidden columns on submit) is intentionally out of scope here — that's a follow-up. Today the frontend is responsible for stripping hidden fields from `POST` / `PUT` bodies.
 
 ## Type Inference
 

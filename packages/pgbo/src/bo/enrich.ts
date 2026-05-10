@@ -121,6 +121,15 @@ async function loadLinkComposition(
   let targetRows: Record<string, unknown>[]
 
   if (isBoTarget(target)) {
+    // Composite-key targets aren't supported in link compositions: a single link
+    // table column can't join to multiple key columns. Surface a clear error.
+    if (typeof target.paramField !== 'string') {
+      throw new Error(
+        `Link composition target BO "${target.name}" has a composite paramField — ` +
+        `link-table M2M to composite-key targets is not supported. ` +
+        `Either flatten the target's key, or use a plain composition.`,
+      )
+    }
     targetPKField = target.paramField
     const where: WhereConditions = { [targetPKField]: { any: targetKeys } }
     if (def.where) {
@@ -270,17 +279,24 @@ export async function enrichCompositions<T extends Record<string, unknown>>(
     return items.map(item => ({ ...item }))
   }
 
+  // Compositions hang off a single parent column. For composite-key BOs we use
+  // the first column by convention — modelling compositions across all key
+  // columns is uncommon, and the explicit `parentKey` on each composition still
+  // controls the child side of the join. defineBO rejects an empty paramField
+  // array, so the `?? ''` fallback never fires at runtime.
+  const parentJoinField = typeof bo.paramField === 'string' ? bo.paramField : bo.paramField[0] ?? ''
+
   const resultMap = await loadCompositionLevel(
     db,
     compositions,
-    bo.paramField,
+    parentJoinField,
     items as readonly Record<string, unknown>[],
     opts,
   )
 
   return items.map(item => {
     const enriched: Record<string, unknown> = { ...item }
-    const parentValue = item[bo.paramField]
+    const parentValue = item[parentJoinField]
     for (const [compName, { def, grouped }] of resultMap) {
       const children = grouped.get(parentValue) ?? []
       if (!isLinkComposition(def) && def.cardinality === 'one' && def.merge && def.merge.length > 0) {

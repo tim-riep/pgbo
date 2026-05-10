@@ -80,6 +80,12 @@ export async function enrichAssociations<T extends Record<string, unknown>>(
 
       if (isBusinessObjectTarget(target)) {
         const targetBO = target as unknown as BusinessObjectDef
+        if (typeof targetBO.paramField !== 'string') {
+          throw new Error(
+            `Association "${name}" target BO "${targetBO.name}" has a composite paramField — ` +
+            `single-FK associations to composite-key targets are not supported.`,
+          )
+        }
         const root = targetBO.root
         const where = combineWhere({ [targetBO.paramField]: { any: fkValues } }, def.where)
 
