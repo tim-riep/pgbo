@@ -75,8 +75,27 @@ export function listQuerystringSchema(meta: BOMeta | ViewMeta): JSONSchema {
   }
 }
 
-/** Path-param schema. The param is named `:param` in the route; the BO's paramField names the column. */
-export function paramSchema(paramField: string, paramType: 'integer' | 'string' = 'string'): JSONSchema {
+/**
+ * Path-param schema. The param is named `:param` in the route; the BO's
+ * paramField names the column. For composite keys (issue #51) the param is
+ * always a string in OData-style `(k1='v1',k2='v2')` form.
+ */
+export function paramSchema(
+  paramField: string | readonly string[],
+  paramType: 'integer' | 'string' = 'string',
+): JSONSchema {
+  if (typeof paramField !== 'string') {
+    return {
+      type: 'object',
+      properties: {
+        param: {
+          type: 'string',
+          description: `Composite key (${paramField.join(', ')}) in OData syntax: (k1='v1',k2='v2')`,
+        },
+      },
+      required: ['param'],
+    }
+  }
   return {
     type: 'object',
     properties: {
@@ -109,11 +128,14 @@ export function createBodySchema(meta: BOMeta): JSONSchema {
 /** Body schema for PUT (update): all writable, all optional, immutable + paramField excluded.
  * `additionalProperties: true` for the same reason as createBodySchema. */
 export function updateBodySchema(meta: BOMeta): JSONSchema {
+  const keyCols = new Set(
+    typeof meta.paramField === 'string' ? [meta.paramField] : meta.paramField,
+  )
   const properties: Record<string, JSONSchema> = {}
   for (const field of meta.fields) {
     if (field.hidden) continue
     if (field.immutable) continue
-    if (field.key === meta.paramField) continue
+    if (keyCols.has(field.key)) continue
     if (field.kind === 'translation') continue
     properties[field.key] = fieldSchema(field)
   }
@@ -124,8 +146,16 @@ export function updateBodySchema(meta: BOMeta): JSONSchema {
   }
 }
 
-/** Detect the paramField's PG type from the BO root so the path-param schema gets `integer` vs `string` right. */
-export function paramFieldType(root: ViewDef | TableDef, paramField: string): 'integer' | 'string' {
+/**
+ * Detect the paramField's PG type from the BO root so the path-param schema
+ * gets `integer` vs `string` right. Composite-key params are always emitted as
+ * strings (the OData segment is one string).
+ */
+export function paramFieldType(
+  root: ViewDef | TableDef,
+  paramField: string | readonly string[],
+): 'integer' | 'string' {
+  if (typeof paramField !== 'string') return 'string'
   // Walk to the underlying table — view's source has the column builders
   const table = 'source' in root ? root.source : root
   const builder = (table.columns)[paramField] as AnyColumnBuilder | undefined
@@ -141,7 +171,13 @@ export function metaResponseSchema(): JSONSchema {
     type: 'object',
     properties: {
       name: { type: 'string' },
-      paramField: { type: 'string' },
+      // paramField is a string for simple keys, a string[] for composite keys (issue #51).
+      paramField: {
+        oneOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+      },
       readOnly: { type: 'boolean' },
       fields: { type: 'array', items: { type: 'object', additionalProperties: true } },
       associations: { type: 'array', items: { type: 'object', additionalProperties: true } },

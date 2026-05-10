@@ -256,7 +256,7 @@ type InferColumnsMap<M extends Record<string, any>, SourceCols extends Record<st
 export interface AssociationTargetBO {
   readonly name: string
   readonly root: ViewDef | TableDef
-  readonly paramField: string
+  readonly paramField: string | readonly string[]
   readonly compositions: Readonly<Record<string, unknown>>
 }
 

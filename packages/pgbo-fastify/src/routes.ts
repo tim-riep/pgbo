@@ -10,7 +10,8 @@ import type { ViewDef } from '@pgbo/core/schema'
 import type { WhereConditions, TransactionClient } from '@pgbo/core/query'
 import { parseListParams } from '@pgbo/core/query'
 import { boMeta, viewMeta, type BOMeta, type FieldMeta } from '@pgbo/core/metadata'
-import { enrichCompositions, enrichAssociations, projectRow, projectionExposes, type ProjectionDef } from '@pgbo/core/bo'
+import { enrichCompositions, enrichAssociations, projectRow, projectionExposes, keyToWhere, type ProjectionDef } from '@pgbo/core/bo'
+import { parseCompositeKey } from '@metadataui/spec'
 import type { ProjectionRouteConfig, ViewRouteConfig, FileResponse, SwaggerConfig, RouteContext } from './types.js'
 import { paginateView, buildTenantWhere } from './helpers.js'
 import {
@@ -116,6 +117,28 @@ function extractParam(req: FastifyRequest): string {
   return value
 }
 
+/**
+ * Resolve a raw `:param` segment to a key value matching the BO's `paramField`.
+ *
+ * - Simple key: returns the scalar string.
+ * - Composite key: the segment must be OData-style `(k1='v1',k2='v2')` —
+ *   `parseCompositeKey` handles the parsing.
+ *
+ * Returns the value (scalar or `Record`) suitable for passing to `keyToWhere`.
+ */
+function resolveKeyFromParam(
+  paramField: string | readonly string[],
+  raw: string,
+): unknown {
+  if (typeof paramField === 'string') return raw
+  if (!raw.startsWith('(')) {
+    throw new Error(
+      `Composite key segment must start with "(" — got "${raw}". Expected OData-style "(k='v',...)".`,
+    )
+  }
+  return parseCompositeKey(raw)
+}
+
 /** Merge the projection's root WHERE with any other conditions. Returns undefined if both are empty. */
 function mergeWhere(a: WhereConditions | undefined, b: Record<string, unknown> | undefined): WhereConditions | undefined {
   if (!a && !b) return undefined
@@ -200,12 +223,15 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
 
   // Fetch a single row by paramField — used by detail + write-protection.
   // Applies the projection's root WHERE so "invisible" rows 404 even if they exist.
-  async function fetchByParam(
+  // `keyValue` is a scalar for simple keys, or a Record covering every key
+  // column for composite keys (issue #51).
+  async function fetchByKey(
     queryable: Database | TransactionClient,
-    paramValue: string,
+    keyValue: unknown,
     userId?: string,
   ): Promise<Record<string, unknown> | undefined> {
-    let q = queryable.from(viewDef).where(mergeWhere({ [paramField]: paramValue } as WhereConditions, projection.where) ?? { [paramField]: paramValue } as WhereConditions)
+    const keyWhere = keyToWhere(paramField, keyValue)
+    let q = queryable.from(viewDef).where(mergeWhere(keyWhere, projection.where) ?? keyWhere)
     if (userId) q = q.as(userId)
     const rows = await q.execute()
     return rows[0] as Record<string, unknown> | undefined
@@ -272,10 +298,10 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       response: { 200: rowSchemaObj, 404: route404Schema },
     }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
-      const paramValue = extractParam(req)
+      const keyValue = resolveKeyFromParam(paramField, extractParam(req))
 
       return withSession(ctx, async (q) => {
-        const row = await fetchByParam(q, paramValue, ctx.userId)
+        const row = await fetchByKey(q, keyValue, ctx.userId)
         if (!row) {
           reply.code(404)
           return { error: 'Not found' }
@@ -365,17 +391,21 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       response: { 200: writeRowSchema, 404: route404Schema, 403: route404Schema },
     }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
-      const paramValue = extractParam(req)
+      const keyValue = resolveKeyFromParam(paramField, extractParam(req))
 
       // Always resolve the existing row through the projection — out-of-scope records 404
-      const existing = await withSession(ctx, q => fetchByParam(q, paramValue, ctx.userId))
+      const existing = await withSession(ctx, q => fetchByKey(q, keyValue, ctx.userId))
       if (!existing) {
         reply.code(404)
         return { error: 'Not found' }
       }
       if (includeGlobal && !assertNotGlobal(existing, reply)) return { error: 'Global records are read-only' }
 
-      const data = { ...(req.body as Record<string, unknown>), [paramField]: paramValue }
+      // Splat the key columns onto the body so the BO action sees them in `data`.
+      const keyParts = typeof paramField === 'string'
+        ? { [paramField]: keyValue }
+        : (keyValue as Record<string, unknown>)
+      const data = { ...(req.body as Record<string, unknown>), ...keyParts }
       const result = await boMethods.update(db, ctx, data) as Record<string, unknown>
       if (config.afterWrite) await config.afterWrite(ctx, 'update')
       return narrow(result)
@@ -392,16 +422,19 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
       response: { 200: writeRowSchema, 404: route404Schema, 403: route404Schema },
     }), async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await config.extractContext(req)
-      const paramValue = extractParam(req)
+      const keyValue = resolveKeyFromParam(paramField, extractParam(req))
 
-      const existing = await withSession(ctx, q => fetchByParam(q, paramValue, ctx.userId))
+      const existing = await withSession(ctx, q => fetchByKey(q, keyValue, ctx.userId))
       if (!existing) {
         reply.code(404)
         return { error: 'Not found' }
       }
       if (includeGlobal && !assertNotGlobal(existing, reply)) return { error: 'Global records are read-only' }
 
-      const result = await boMethods.delete(db, ctx, { [paramField]: paramValue }) as Record<string, unknown>
+      const deleteData = typeof paramField === 'string'
+        ? { [paramField]: keyValue }
+        : (keyValue as Record<string, unknown>)
+      const result = await boMethods.delete(db, ctx, deleteData) as Record<string, unknown>
       if (config.afterWrite) await config.afterWrite(ctx, 'delete')
       return narrow(result)
     })

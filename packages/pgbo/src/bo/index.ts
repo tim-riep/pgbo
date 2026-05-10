@@ -26,9 +26,11 @@ type ResolveColumns<R> =
   R extends ViewDef ? R['source'] extends TableDef<infer C> ? C : Record<string, AnyColumnBuilder> :
   Record<string, AnyColumnBuilder>
 
-/** Resolve the paramField — defaults to 'id' */
+/** Resolve the paramField — defaults to 'id'. Supports composite keys (issue #51). */
 type ResolveParam<C extends Record<string, AnyColumnBuilder>, Cfg extends BOConfig<C>> =
-  Cfg extends { paramField: infer P extends string & keyof C } ? P : 'id' & keyof C
+  Cfg extends { paramField: infer P extends string & keyof C } ? P :
+  Cfg extends { paramField: infer P extends readonly (string & keyof C)[] } ? P :
+  'id' & keyof C
 
 export function defineBO<
   R extends ViewDef | TableDef,
@@ -84,6 +86,24 @@ export function defineBO<
     }
   }
 
+  // Composite-key validation (issue #51): when paramField is an array, every entry
+  // must be a real column on the BO root, and the array must not be empty.
+  if (Array.isArray(config.paramField)) {
+    if (config.paramField.length === 0) {
+      throw new Error(`BO "${boName}": paramField is an empty array — needs at least one column`)
+    }
+    const tableForRoot = 'source' in root ? root.source : root
+    const cols = tableForRoot.columns as Record<string, unknown>
+    for (const k of config.paramField) {
+      if (!(k in cols)) {
+        throw new Error(
+          `BO "${boName}": paramField references column "${k}" which does not exist on root "${root.name}". ` +
+          `Available columns: ${Object.keys(cols).join(', ')}.`,
+        )
+      }
+    }
+  }
+
   const bo: BusinessObjectDef = {
     name: config.name ?? snakeToCamel(root.name),
     root,
@@ -126,3 +146,5 @@ export { type BusinessObjectDef, type BOConfig, type ActionDef, type ActionConte
 export { enrichCompositions } from './enrich.js'
 export { enrichAssociations, type EnrichAssociationsOptions } from './enrich-associations.js'
 export { defineProjection, projectRow, projectionExposes } from './projection.js'
+// Composite-key helpers — issue #51
+export { paramFieldList, isComposite, keyToWhere, extractKey, keyHash, valueHash } from './composite-key.js'

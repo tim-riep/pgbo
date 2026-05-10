@@ -2,11 +2,14 @@
 // `fetch`, knows the URL schema and pagination contract, caches metadata,
 // retries once on 401.
 
-import type { PaginatedResult } from '@metadataui/spec'
+import type { PaginatedResult, CompositeKey } from '@metadataui/spec'
 import {
   urlForProjection, urlForDetail, urlForAction, urlForValueHelp,
   urlForMeta, urlForView, urlForViewMeta, buildQueryString,
 } from '@metadataui/spec'
+
+/** Param value for detail / update / delete — scalar for single keys, record for composites (issue #51). */
+export type DetailKey = string | number | CompositeKey
 import type {
   ClientConfig, ListQuery, PublicBoMeta, ActionOptions,
 } from './types.js'
@@ -22,8 +25,8 @@ export interface MetadataUiClient {
   /** GET `/bo/{name}` — paginated list with `{ items, total, page, limit }`. */
   list<T = Record<string, unknown>>(projection: string, query?: ListQuery): Promise<PaginatedResult<T>>
 
-  /** GET `/bo/{name}/{paramValue}` — single row. */
-  detail<T = Record<string, unknown>>(projection: string, paramValue: string | number): Promise<T>
+  /** GET `/bo/{name}/{paramValue}` — single row. Pass a `CompositeKey` record for BOs with `paramField: string[]` (issue #51). */
+  detail<T = Record<string, unknown>>(projection: string, paramValue: DetailKey): Promise<T>
 
   /** POST `/bo/{name}` — returns the created row. */
   create<T = Record<string, unknown>>(projection: string, data: Record<string, unknown>): Promise<T>
@@ -31,12 +34,12 @@ export interface MetadataUiClient {
   /** PUT `/bo/{name}/{paramValue}` — returns the updated row. */
   update<T = Record<string, unknown>>(
     projection: string,
-    paramValue: string | number,
+    paramValue: DetailKey,
     data: Record<string, unknown>,
   ): Promise<T>
 
   /** DELETE `/bo/{name}/{paramValue}`. */
-  delete<T = Record<string, unknown>>(projection: string, paramValue: string | number): Promise<T>
+  delete<T = Record<string, unknown>>(projection: string, paramValue: DetailKey): Promise<T>
 
   /**
    * POST `/bo/{name}/{action}` — custom action.
@@ -171,7 +174,7 @@ export function createClient(config: ClientConfig): MetadataUiClient {
       return await get(`${urlForProjection(config.baseUrl, projection)}${qs}`) as PaginatedResult<T>
     },
 
-    async detail<T>(projection: string, paramValue: string | number) {
+    async detail<T>(projection: string, paramValue: DetailKey) {
       const qs = buildQueryString(applyLocale(undefined) as Record<string, unknown>)
       return await get(`${urlForDetail(config.baseUrl, projection, paramValue)}${qs}`) as T
     },
@@ -180,11 +183,11 @@ export function createClient(config: ClientConfig): MetadataUiClient {
       return await post(urlForProjection(config.baseUrl, projection), data) as T
     },
 
-    async update<T>(projection: string, paramValue: string | number, data: Record<string, unknown>) {
+    async update<T>(projection: string, paramValue: DetailKey, data: Record<string, unknown>) {
       return await put(urlForDetail(config.baseUrl, projection, paramValue), data) as T
     },
 
-    async delete<T>(projection: string, paramValue: string | number) {
+    async delete<T>(projection: string, paramValue: DetailKey) {
       return await del(urlForDetail(config.baseUrl, projection, paramValue)) as T
     },
 
