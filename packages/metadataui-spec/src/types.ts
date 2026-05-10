@@ -39,7 +39,11 @@ export interface FilterMeta {
  * validation while the field is hidden, and strip hidden fields from the
  * submit payload so toggling the discriminator doesn't carry stale data.
  */
-export type VisibleWhen = Readonly<Record<string, unknown | readonly unknown[]>>
+// Each entry is either a single scalar (string / number / boolean) the field's
+// own value must equal, or a `readonly` array of allowed scalars. Typed as
+// `unknown` because TS would collapse the union with `readonly unknown[]` to
+// `unknown` anyway — frontends should narrow at the call site.
+export type VisibleWhen = Readonly<Record<string, unknown>>
 
 /** Reference from a field to its value-help endpoint — drives metadata-driven dropdowns. */
 export interface ValueHelpRef {
