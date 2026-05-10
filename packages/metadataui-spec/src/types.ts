@@ -24,6 +24,27 @@ export interface FilterMeta {
   readonly options?: readonly FilterOption[]
 }
 
+/**
+ * Discriminator-aware field-visibility predicate (issue #62). Set by
+ * `col(...).visibleWhen({ kind: 'esm_upload' })` on the server. The frontend
+ * evaluates this against the current form state on every change and shows or
+ * hides the field accordingly.
+ *
+ * Single value:    `{ kind: 'esm_upload' }`            (equality)
+ * Multi-value:     `{ kind: ['esm_upload', 'iframe'] }` (OR — value ∈ list)
+ * Multi-condition: `{ kind: 'iframe', requiresAuth: true }` (AND across keys)
+ *
+ * `required` and `visibleWhen` compose: a field that's both required and
+ * visibleWhen means "required when visible." Frontends should skip required
+ * validation while the field is hidden, and strip hidden fields from the
+ * submit payload so toggling the discriminator doesn't carry stale data.
+ */
+// Each entry is either a single scalar (string / number / boolean) the field's
+// own value must equal, or a `readonly` array of allowed scalars. Typed as
+// `unknown` because TS would collapse the union with `readonly unknown[]` to
+// `unknown` anyway — frontends should narrow at the call site.
+export type VisibleWhen = Readonly<Record<string, unknown>>
+
 /** Reference from a field to its value-help endpoint — drives metadata-driven dropdowns. */
 export interface ValueHelpRef {
   /** Key under the BO's `valueHelps` map — the URL segment in `/bo/{name}/valueHelp/{key}`. */
@@ -50,6 +71,12 @@ export interface FieldMeta {
   readonly inForm: boolean
   readonly required: boolean
   readonly quick: boolean
+  /**
+   * Discriminator-aware visibility predicate (issue #62). When set, the
+   * frontend evaluates these key/value pairs against the current form state
+   * to decide whether to render the field. See `VisibleWhen` for semantics.
+   */
+  readonly visibleWhen?: VisibleWhen
 }
 
 // --- Aggregate metadata ---
@@ -127,6 +154,8 @@ export interface PublicFieldMeta {
   readonly inForm: boolean
   readonly required: boolean
   readonly quick: boolean
+  /** Discriminator-aware visibility predicate (issue #62). See `VisibleWhen`. */
+  readonly visibleWhen?: VisibleWhen
 }
 
 /** The shape returned by `GET /meta/{name}` — what frontends consume. */

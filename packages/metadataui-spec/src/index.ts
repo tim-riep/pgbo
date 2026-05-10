@@ -6,7 +6,7 @@
 
 export type {
   // Field metadata
-  FieldKind, FilterOption, FilterMeta, ValueHelpRef, FieldMeta,
+  FieldKind, FilterOption, FilterMeta, ValueHelpRef, FieldMeta, VisibleWhen,
   // Aggregate metadata
   AssociationMeta, CompositionMeta, ValueHelpMeta, ViewMeta, BOMeta,
   // Public (post-transform) shapes
