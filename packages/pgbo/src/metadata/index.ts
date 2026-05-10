@@ -122,6 +122,9 @@ function buildFieldMeta(
     inForm: annotations.inForm ?? true,
     required: annotations.required ?? false,
     quick: annotations.quick ?? false,
+    // Issue #62 — surface the discriminator-aware visibility predicate so
+    // metadata-driven forms can hide irrelevant fields based on form state.
+    ...(annotations.visibleWhen && { visibleWhen: annotations.visibleWhen }),
   }
 }
 

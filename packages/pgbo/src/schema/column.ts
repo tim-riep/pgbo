@@ -1,6 +1,6 @@
 // Column reference helper for view select — Phase 3
 
-import type { ColumnRef, FieldAnnotations, FieldKind, FilterOption, ViewDef, TableDef, AnyColumnBuilder } from './definitions.js'
+import type { ColumnRef, FieldAnnotations, FieldKind, FilterOption, ViewDef, TableDef, AnyColumnBuilder, VisibleWhen } from './definitions.js'
 import type { InferColumnType } from './infer.js'
 
 class ColumnRefImpl<T = unknown, R extends string = string> implements ColumnRef<T, R> {
@@ -41,6 +41,15 @@ class ColumnRefImpl<T = unknown, R extends string = string> implements ColumnRef
   filterOptions(opts: FilterOption[]): ColumnRef<T, R> { return this.withAnnotation({ filterOptions: opts }) }
   filterKey(k: string): ColumnRef<T, R> { return this.withAnnotation({ filterKey: k }) }
   quick(): ColumnRef<T, R> { return this.withAnnotation({ quick: true }) }
+  visibleWhen(predicate: VisibleWhen): ColumnRef<T, R> {
+    if (Object.keys(predicate).length === 0) {
+      throw new Error(
+        '.visibleWhen() requires at least one key/value pair. ' +
+        'Pass a non-empty object like { kind: \'esm_upload\' } or omit the call entirely.',
+      )
+    }
+    return this.withAnnotation({ visibleWhen: predicate })
+  }
 }
 
 /**

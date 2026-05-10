@@ -143,8 +143,8 @@ export interface TableInput {
 
 // Re-export from @metadataui/spec so the field-kind contract has a single
 // source of truth across server (pgbo) and client (metadataui-client).
-import type { FieldKind, FilterOption } from '@metadataui/spec'
-export type { FieldKind, FilterOption }
+import type { FieldKind, FilterOption, VisibleWhen } from '@metadataui/spec'
+export type { FieldKind, FilterOption, VisibleWhen }
 
 export interface FieldAnnotations {
   readonly label?: string
@@ -161,6 +161,8 @@ export interface FieldAnnotations {
   readonly filterOptions?: readonly FilterOption[]
   readonly filterKey?: string
   readonly quick?: boolean
+  /** Discriminator-aware visibility predicate (issue #62). */
+  readonly visibleWhen?: VisibleWhen
 }
 
 // --- Column reference ---
@@ -191,6 +193,16 @@ export interface ColumnRef<T = unknown, R extends string = string> {
   filterOptions(opts: FilterOption[]): ColumnRef<T, R>
   filterKey(k: string): ColumnRef<T, R>
   quick(): ColumnRef<T, R>
+  /**
+   * Hide the field unless the form state matches the predicate (issue #62).
+   *
+   * - Single value:    `visibleWhen({ kind: 'esm_upload' })` (equality)
+   * - Multi-value:     `visibleWhen({ kind: ['esm_upload', 'iframe'] })` (OR)
+   * - Multi-condition: `visibleWhen({ kind: 'iframe', requiresAuth: true })` (AND)
+   *
+   * Combines with `.required()` — required only applies when the field is visible.
+   */
+  visibleWhen(predicate: VisibleWhen): ColumnRef<T, R>
 }
 
 // --- Subquery count reference ---
