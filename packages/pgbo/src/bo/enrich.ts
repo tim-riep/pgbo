@@ -282,8 +282,9 @@ export async function enrichCompositions<T extends Record<string, unknown>>(
   // Compositions hang off a single parent column. For composite-key BOs we use
   // the first column by convention — modelling compositions across all key
   // columns is uncommon, and the explicit `parentKey` on each composition still
-  // controls the child side of the join.
-  const parentJoinField = typeof bo.paramField === 'string' ? bo.paramField : bo.paramField[0]!
+  // controls the child side of the join. defineBO rejects an empty paramField
+  // array, so the `?? ''` fallback never fires at runtime.
+  const parentJoinField = typeof bo.paramField === 'string' ? bo.paramField : bo.paramField[0] ?? ''
 
   const resultMap = await loadCompositionLevel(
     db,

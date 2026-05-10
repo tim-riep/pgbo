@@ -66,6 +66,15 @@ export function extractKey(
   return out
 }
 
+/** Stringify a primitive key column. Non-primitive values collapse to empty —
+ *  keys come out of Postgres so this is mostly defensive. */
+function stringifyScalar(v: unknown): string {
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v)
+  return ''
+}
+
 /**
  * Stable string hash of a row's key columns — usable as a JS `Map` key for
  * grouping. For simple keys this is the value coerced to string; for composite
@@ -75,14 +84,8 @@ export function keyHash(
   paramField: string | readonly string[],
   row: Record<string, unknown>,
 ): string {
-  if (typeof paramField === 'string') {
-    const v = row[paramField]
-    return v === null || v === undefined ? '' : String(v)
-  }
-  return paramField.map(k => {
-    const v = row[k]
-    return v === null || v === undefined ? '' : String(v)
-  }).join('')
+  if (typeof paramField === 'string') return stringifyScalar(row[paramField])
+  return paramField.map(k => stringifyScalar(row[k])).join('')
 }
 
 /**
@@ -93,13 +96,8 @@ export function valueHash(
   paramField: string | readonly string[],
   value: unknown,
 ): string {
-  if (typeof paramField === 'string') {
-    return value === null || value === undefined ? '' : String(value)
-  }
+  if (typeof paramField === 'string') return stringifyScalar(value)
   if (value === null || typeof value !== 'object') return ''
   const obj = value as Record<string, unknown>
-  return paramField.map(k => {
-    const v = obj[k]
-    return v === null || v === undefined ? '' : String(v)
-  }).join('')
+  return paramField.map(k => stringifyScalar(obj[k])).join('')
 }

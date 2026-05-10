@@ -74,9 +74,9 @@ export async function executeAction(
 
         // Composition parentKey resolves against a single column even when the
         // BO uses a composite key — only one column is the FK that links children.
-        const parentKeyValue = typeof bo.paramField === 'string'
-          ? (result as Record<string, unknown>)[bo.paramField]
-          : (result as Record<string, unknown>)[bo.paramField[0]!]
+        // defineBO already rejects an empty paramField array, so [0] is defined.
+        const parentJoinCol = typeof bo.paramField === 'string' ? bo.paramField : bo.paramField[0] ?? ''
+        const parentKeyValue = (result as Record<string, unknown>)[parentJoinCol]
         for (const childRow of compData as Record<string, unknown>[]) {
           const childData = { ...childRow, [plain.parentKey]: parentKeyValue }
           await db._table.into(compTable).values(childData).execute()
