@@ -14,6 +14,8 @@ export type {
   FileResponse,
   // Translation enrichment
   TranslationConfig, EnrichConfig,
+  // Composite-key support — issue #51
+  CompositeKey,
 } from '@metadataui/spec'
 
 /** Query options for `client.list` / `client.valueHelp` / view routes. */

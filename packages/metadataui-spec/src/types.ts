@@ -77,7 +77,15 @@ export interface ViewMeta {
 }
 
 export interface BOMeta extends ViewMeta {
-  readonly paramField: string
+  /**
+   * Identifier column(s) for the BO. A single string for the common case
+   * (`'id'`, `'slug'`); a tuple for composite keys (issue #51).
+   *
+   * Frontends switch URL form based on this:
+   * - `string` → `/bo/{name}/{value}`
+   * - `string[]` → `/bo/{name}/(k1='v1',k2='v2')` (OData-style)
+   */
+  readonly paramField: string | readonly string[]
   readonly readOnly: boolean
   readonly compositions: readonly CompositionMeta[]
   readonly valueHelps: readonly ValueHelpMeta[]
@@ -124,7 +132,8 @@ export interface PublicFieldMeta {
 /** The shape returned by `GET /meta/{name}` — what frontends consume. */
 export interface PublicBoMeta {
   readonly name: string
-  readonly paramField: string
+  /** Single string for simple keys, array for composite (issue #51). */
+  readonly paramField: string | readonly string[]
   readonly readOnly: boolean
   readonly fields: readonly PublicFieldMeta[]
   readonly associations: readonly AssociationMeta[]
@@ -134,6 +143,13 @@ export interface PublicBoMeta {
   readonly orderDir?: 'asc' | 'desc'
   readonly cacheTags?: readonly string[]
 }
+
+/**
+ * A composite-key value: maps each key column to its scalar value
+ * (string or number). Used in URL composition for BOs whose `paramField`
+ * is an array (issue #51).
+ */
+export type CompositeKey = Readonly<Record<string, string | number>>
 
 // --- List query contract ---
 

@@ -10,7 +10,7 @@ import type { ViewDef, TableDef, AnyColumnBuilder, FieldKind, AssociationDef } f
 export interface BoTarget {
   readonly name: string
   readonly root: ViewDef | TableDef
-  readonly paramField: string
+  readonly paramField: string | readonly string[]
   readonly compositions: Readonly<Record<string, unknown>>
 }
 import type { InferRow, InferInsert, InferUpdate } from '../schema/infer.js'
@@ -116,7 +116,15 @@ export interface VirtualFieldMeta {
 export interface BusinessObjectDef {
   readonly name: string
   readonly root: ViewDef | TableDef
-  readonly paramField: string
+  /**
+   * Identifier column(s) for the BO. A single string for the common case
+   * (`'id'`, `'slug'`); a tuple of column names for composite keys (issue #51).
+   *
+   * Frontends switch URL form based on this:
+   * - `string` → `/bo/{name}/{value}`
+   * - `string[]` → `/bo/{name}/(k1='v1',k2='v2')` (OData-style)
+   */
+  readonly paramField: string | readonly string[]
   readonly actions: Readonly<Record<string, ActionDef>>
   readonly compositions: Readonly<Record<string, AnyCompositionDef>>
   readonly associations: Readonly<Record<string, AssociationDef>>
@@ -157,7 +165,12 @@ export interface ProjectionConfig {
 
 export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<string, AnyColumnBuilder>> {
   name?: string
-  paramField?: string & keyof C
+  /**
+   * Identifier column(s). Pass a single string for the common case,
+   * or a tuple of column names for composite keys (issue #51).
+   * Defaults to `'id'`.
+   */
+  paramField?: (string & keyof C) | readonly (string & keyof C)[]
   actions?: Record<string, ActionDef>
   compositions?: Record<string, AnyCompositionDef | ViewDef | TableDef>
   associations?: Record<string, AssociationDef>
@@ -169,13 +182,19 @@ export interface BOConfig<C extends Record<string, AnyColumnBuilder> = Record<st
   transformItems?: (rows: Record<string, unknown>[], locale: string, db: any) => Promise<Record<string, unknown>[]>
 }
 
+/** Pick a `Record` of every key in `K` (supports tuples — issue #51 composite keys). */
+type PickByKeys<C extends Record<string, AnyColumnBuilder>, K> =
+  K extends string & keyof C ? Pick<InferRow<{ columns: C }>, K> :
+  K extends readonly (string & keyof C)[] ? Pick<InferRow<{ columns: C }>, K[number]> :
+  never
+
 /** Typed BO instance — all methods are type-safe based on the root table's columns */
 export interface TypedBusinessObject<
   C extends Record<string, AnyColumnBuilder>,
-  P extends string & keyof C,
+  P extends (string & keyof C) | readonly (string & keyof C)[],
 > extends BusinessObjectDef {
   create(db: import('../query/client.js').Database, ctx: ActionContext, data: InferInsert<{ columns: C }> & Record<string, unknown>): Promise<InferRow<{ columns: C }>>
-  update(db: import('../query/client.js').Database, ctx: ActionContext, data: Pick<InferRow<{ columns: C }>, P> & InferUpdate<{ columns: C }>): Promise<InferRow<{ columns: C }>>
-  delete(db: import('../query/client.js').Database, ctx: ActionContext, data: Pick<InferRow<{ columns: C }>, P>): Promise<InferRow<{ columns: C }>>
+  update(db: import('../query/client.js').Database, ctx: ActionContext, data: PickByKeys<C, P> & InferUpdate<{ columns: C }>): Promise<InferRow<{ columns: C }>>
+  delete(db: import('../query/client.js').Database, ctx: ActionContext, data: PickByKeys<C, P>): Promise<InferRow<{ columns: C }>>
   execute(db: import('../query/client.js').Database, actionName: string, ctx: ActionContext, data: Record<string, unknown>): Promise<unknown>
 }
