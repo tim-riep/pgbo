@@ -100,6 +100,11 @@ function transformProjectionMeta(projection: ProjectionDef, meta: BOMeta): Publi
         inForm: f.hidden ? false : f.inForm,
         required: f.required,
         quick: f.quick,
+        // Surface system-managed timestamps (#61) and discriminator-aware
+        // visibility predicates (#62) on the wire — the conditional spread
+        // matches how `valueHelp` / `filterable` are handled (issue #68).
+        ...(f.systemManaged && { systemManaged: f.systemManaged }),
+        ...(f.visibleWhen && { visibleWhen: f.visibleWhen }),
       }
     })
   return { ...meta, name: projection.name, fields }
