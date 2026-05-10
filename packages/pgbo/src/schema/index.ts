@@ -17,6 +17,9 @@ export {
   daterange, int4range, numrange, tsrange, tstzrange,
 } from './types.js'
 
+// System-managed timestamps shorthand (issue #61)
+export { systemTimestamps } from './system-timestamps.js'
+
 // Type inference utilities
 export type { InferRow, InferInsert, InferUpdate, InferColumnType, InferViewRow } from './infer.js'
 export type {

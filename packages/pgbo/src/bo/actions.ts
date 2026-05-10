@@ -1,7 +1,7 @@
 // Standard action handlers — Phase 7 (Step 17)
 
 import type { Database } from '../query/client.js'
-import type { TableDef } from '../schema/definitions.js'
+import type { TableDef, AnyColumnBuilder } from '../schema/definitions.js'
 import type { BusinessObjectDef, ActionContext } from './types.js'
 
 function getTable(bo: BusinessObjectDef): TableDef {
@@ -9,6 +9,30 @@ function getTable(bo: BusinessObjectDef): TableDef {
   if ('columns' in root && 'primaryKey' in root) return root
   if ('source' in root) return root.source
   throw new Error(`Cannot resolve table from BO root`)
+}
+
+/** Walk the root table's columns and split out which are system-managed (issue #61). */
+function systemManagedColumns(table: TableDef): { createdAt: string[]; updatedAt: string[] } {
+  const result = { createdAt: [] as string[], updatedAt: [] as string[] }
+  for (const [camelName, builder] of Object.entries(table.columns)) {
+    const sm = (builder as AnyColumnBuilder)._def.systemManaged
+    if (sm === 'createdAt') result.createdAt.push(camelName)
+    else if (sm === 'updatedAt') result.updatedAt.push(camelName)
+  }
+  return result
+}
+
+/** Drop client-supplied values for system-managed columns — they're owned by the framework. */
+function stripSystemManagedKeys(
+  data: Record<string, unknown>,
+  systemCols: { createdAt: string[]; updatedAt: string[] },
+): Record<string, unknown> {
+  const banned = new Set([...systemCols.createdAt, ...systemCols.updatedAt])
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (!banned.has(k)) out[k] = v
+  }
+  return out
 }
 
 export async function executeAction(
@@ -45,18 +69,22 @@ export async function executeAction(
 
   // Use internal _table API — BO framework writes directly to tables
   const table = getTable(bo)
+  const systemCols = systemManagedColumns(table)
   let result: unknown
 
   switch (actionName) {
     case 'create': {
-      // Strip composition keys from parent data
+      // Strip composition keys + system-managed columns from parent data.
+      // System-managed columns get their value from the table's DEFAULT now()
+      // — clients can't override them (issue #61).
       const compositionKeys = new Set(Object.keys(bo.compositions))
       const parentData: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(data)) {
         if (!compositionKeys.has(k)) parentData[k] = v
       }
+      const cleaned = stripSystemManagedKeys(parentData, systemCols)
 
-      const rows = await db._table.into(table).values(parentData).returning('*').execute()
+      const rows = await db._table.into(table).values(cleaned).returning('*').execute()
       result = rows[0]
 
       // Handle compositions on create. Link-table compositions (M2M) are
@@ -81,9 +109,16 @@ export async function executeAction(
       break
     }
     case 'update': {
-      const { [bo.paramField]: paramValue, ...updateData } = data
+      const { [bo.paramField]: paramValue, ...rawUpdateData } = data
+      // Strip any client-supplied system-managed values, then auto-stamp every
+      // `updatedAt` column with `now()` so the timestamp actually advances on
+      // each write (issue #61).
+      const cleaned = stripSystemManagedKeys(rawUpdateData, systemCols)
+      const stamp = new Date()
+      for (const col of systemCols.updatedAt) cleaned[col] = stamp
+
       const rows = await db._table.update(table)
-        .set(updateData)
+        .set(cleaned)
         .where({ [bo.paramField]: paramValue })
         .returning('*')
         .execute()

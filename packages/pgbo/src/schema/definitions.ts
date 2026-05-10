@@ -14,6 +14,13 @@ export interface ColumnDef {
   readonly precision: number | undefined
   readonly scale: number | undefined
   readonly hasTimeZone: boolean
+  /**
+   * System-managed timestamp marker (issue #61). Set by `.systemCreatedAt()` /
+   * `.systemUpdatedAt()`. Surfaces through metadata as `inForm: false,
+   * immutable: true` so auto-generated forms skip them; BO update operations
+   * auto-stamp `updatedAt` columns on every write so `now()` actually advances.
+   */
+  readonly systemManaged?: 'createdAt' | 'updatedAt'
 }
 
 export interface ColumnBuilder<
@@ -49,6 +56,12 @@ export interface ColumnBuilder<
   // Type-specific
   precision(p: number, s?: number): ColumnBuilder<TsType, Nullable, HasDefault>
   withTimeZone(): ColumnBuilder<TsType, Nullable, HasDefault>
+
+  // System-managed timestamps (issue #61)
+  /** Mark as `createdAt`: NOT NULL DEFAULT now(). Hidden from forms, immutable. */
+  systemCreatedAt(): ColumnBuilder<TsType, false, true>
+  /** Mark as `updatedAt`: NOT NULL DEFAULT now(); BO updates auto-stamp `now()`. Hidden from forms, immutable. */
+  systemUpdatedAt(): ColumnBuilder<TsType, false, true>
 
   // DDL
   toSQL(columnName: string): string

@@ -50,6 +50,14 @@ export interface FieldMeta {
   readonly inForm: boolean
   readonly required: boolean
   readonly quick: boolean
+  /**
+   * System-managed timestamp marker (issue #61). Set when the column was
+   * declared with `.systemCreatedAt()` / `.systemUpdatedAt()` (or via the
+   * `systemTimestamps()` helper). Always paired with `inForm: false,
+   * immutable: true`. Servers should auto-stamp `updatedAt` on writes
+   * and strip these fields from incoming payloads.
+   */
+  readonly systemManaged?: 'createdAt' | 'updatedAt'
 }
 
 // --- Aggregate metadata ---
@@ -119,6 +127,8 @@ export interface PublicFieldMeta {
   readonly inForm: boolean
   readonly required: boolean
   readonly quick: boolean
+  /** System-managed timestamp marker (issue #61). See `FieldMeta.systemManaged`. */
+  readonly systemManaged?: 'createdAt' | 'updatedAt'
 }
 
 /** The shape returned by `GET /meta/{name}` — what frontends consume. */

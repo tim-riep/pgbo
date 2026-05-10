@@ -92,6 +92,7 @@ function buildFieldMeta(
   annotations: ColumnRef['annotations'],
   pgType: string,
   isTranslated: boolean,
+  systemManaged?: 'createdAt' | 'updatedAt',
 ): FieldMeta {
   const kind: FieldKind = isTranslated
     ? 'translation'
@@ -109,19 +110,24 @@ function buildFieldMeta(
     ? { name: vh.name, keyField: vh.vhAnnotation.key, displayField: vh.vhAnnotation.display }
     : undefined
 
+  // System-managed timestamps (issue #61) are always immutable + form-hidden,
+  // regardless of explicit annotations on the column ref.
+  const isSystemManaged = systemManaged !== undefined
+
   return {
     key,
     kind,
     label: annotations.label,
     hidden: annotations.hidden ?? false,
-    immutable: annotations.immutable ?? false,
+    immutable: isSystemManaged ? true : (annotations.immutable ?? false),
     searchable: annotations.searchable ?? false,
     filterable,
     valueHelp,
     inList: annotations.inList ?? true,
-    inForm: annotations.inForm ?? true,
-    required: annotations.required ?? false,
+    inForm: isSystemManaged ? false : (annotations.inForm ?? true),
+    required: isSystemManaged ? false : (annotations.required ?? false),
     quick: annotations.quick ?? false,
+    ...(systemManaged && { systemManaged }),
   }
 }
 
@@ -142,13 +148,15 @@ export function viewMeta(source: ViewDef | TableDef): ViewMeta {
         const resolvedTable = colRef.sourceTable ?? sourceTable
         const colBuilder = resolvedTable.columns[colRef.ref] as AnyColumnBuilder | undefined
         const pgType = colBuilder?._def.pgType ?? 'text'
-        fields.push(buildFieldMeta(key, colRef.annotations, pgType, false))
+        const systemManaged = colBuilder?._def.systemManaged
+        fields.push(buildFieldMeta(key, colRef.annotations, pgType, false, systemManaged))
       }
     }
   } else {
     for (const [camelName, colBuilder] of Object.entries(sourceTable.columns)) {
       const pgType = (colBuilder)._def.pgType
-      fields.push(buildFieldMeta(camelName, {}, pgType, false))
+      const systemManaged = (colBuilder)._def.systemManaged
+      fields.push(buildFieldMeta(camelName, {}, pgType, false, systemManaged))
     }
   }
 
