@@ -1,7 +1,7 @@
 // Standard action handlers — Phase 7 (Step 17)
 
 import type { Database } from '../query/client.js'
-import type { TableDef, AnyColumnBuilder } from '../schema/definitions.js'
+import type { TableDef } from '../schema/definitions.js'
 import type { BusinessObjectDef, ActionContext } from './types.js'
 
 function getTable(bo: BusinessObjectDef): TableDef {
@@ -15,7 +15,7 @@ function getTable(bo: BusinessObjectDef): TableDef {
 function systemManagedColumns(table: TableDef): { createdAt: string[]; updatedAt: string[] } {
   const result = { createdAt: [] as string[], updatedAt: [] as string[] }
   for (const [camelName, builder] of Object.entries(table.columns)) {
-    const sm = (builder as AnyColumnBuilder)._def.systemManaged
+    const sm = builder._def.systemManaged
     if (sm === 'createdAt') result.createdAt.push(camelName)
     else if (sm === 'updatedAt') result.updatedAt.push(camelName)
   }
