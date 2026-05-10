@@ -174,6 +174,15 @@ export function urlForViewMeta(base: string, view: string): string {
   return `${trimBase(base)}/view/${view}/meta`
 }
 
+/** Narrow `unknown` to a value safely stringifiable by `String()`. Returns
+ *  `undefined` for non-primitive values so callers can skip them. */
+function stringifyPrimitive(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v)
+  return undefined
+}
+
 /**
  * Encode a record into `key=value&key=value` (skipping undefined / null / empty strings).
  *
@@ -191,21 +200,23 @@ export function buildQueryString(params: Record<string, unknown>): string {
         for (const [col, val] of Object.entries(value as Record<string, unknown>)) {
           if (val === undefined || val === null || val === '') continue
           if (typeof val === 'object') continue
-          const str = typeof val === 'string' ? val : String(val as number | boolean | bigint)
+          const str = stringifyPrimitive(val)
+          if (str === undefined) continue
           parts.push(`filter.${encodeURIComponent(col)}=${encodeURIComponent(str)}`)
         }
         continue
       }
       if (Array.isArray(value)) {
         if (value.length > 0) {
-          const joined = (value as readonly unknown[]).map(v => String(v as string | number | boolean)).join(',')
+          const joined = (value as readonly unknown[]).map(v => stringifyPrimitive(v) ?? '').join(',')
           parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(joined)}`)
         }
         continue
       }
       continue
     }
-    const str = typeof value === 'string' ? value : String(value as number | boolean | bigint)
+    const str = stringifyPrimitive(value)
+    if (str === undefined) continue
     parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(str)}`)
   }
   return parts.length > 0 ? `?${parts.join('&')}` : ''

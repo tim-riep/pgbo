@@ -86,9 +86,9 @@ export class SelectBuilder<Row> {
     return this
   }
 
-  pick<K extends keyof Row & string>(columns: readonly K[]): SelectBuilder<Pick<Row, K>> {
+  pick(columns: readonly (keyof Row & string)[]): this {
     this.pickCols = columns.map(c => toSnakeCase(c)).join(', ')
-    return this as unknown as SelectBuilder<Pick<Row, K>>
+    return this
   }
 
   where(conditions: WhereConditions): this {

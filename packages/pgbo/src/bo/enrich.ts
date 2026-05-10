@@ -155,7 +155,7 @@ async function loadLinkComposition(
     if (def.where) {
       for (const [k, v] of Object.entries(resolveWhere(def.where, opts.ctx))) where[k] = v
     }
-    targetRows = await db.from(target).where(where).execute() as Record<string, unknown>[]
+    targetRows = await db.from(target).where(where).execute()
   } else {
     // Plain TableDef target
     const targetTable = target
@@ -168,7 +168,7 @@ async function loadLinkComposition(
     if (def.where) {
       for (const [k, v] of Object.entries(resolveWhere(def.where, opts.ctx))) where[k] = v
     }
-    targetRows = await db._table.from(targetTable).where(where).execute() as unknown as Record<string, unknown>[]
+    targetRows = await db._table.from(targetTable).where(where).execute()
   }
 
   // 4. Build target-key → row map, then group by parent via link rows
@@ -290,7 +290,7 @@ export async function enrichCompositions<T extends Record<string, unknown>>(
     db,
     compositions,
     parentJoinField,
-    items as readonly Record<string, unknown>[],
+    items,
     opts,
   )
 

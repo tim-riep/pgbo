@@ -34,7 +34,7 @@ export function keyToWhere(
       const v = (value as Record<string, unknown>)[paramField]
       return { [paramField]: v }
     }
-    return { [paramField]: value as string | number }
+    return { [paramField]: value }
   }
   if (value === null || typeof value !== 'object') {
     throw new Error(
@@ -49,7 +49,7 @@ export function keyToWhere(
     }
     where[k] = obj[k]
   }
-  return where as WhereConditions
+  return where
 }
 
 /**

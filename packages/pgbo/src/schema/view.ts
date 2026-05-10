@@ -129,7 +129,7 @@ function createViewDef(
             const snakeOutput = toSnakeCase(outputName)
             colParts.push(`(SELECT COUNT(*) FROM ${childName} WHERE ${joinClauses}${where})::integer AS ${snakeOutput}`)
           } else {
-            const colRef = entry as ColumnRef
+            const colRef = entry
             const sourceTableName = colRef.sourceTable ? colRef.sourceTable.name : tableName
             const snakeRef = toSnakeCase(colRef.ref)
             const snakeOutput = toSnakeCase(outputName)

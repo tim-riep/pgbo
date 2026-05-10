@@ -33,7 +33,7 @@ function buildSearchWhere(view: ViewDef, search: string): WhereConditions | unde
   const keys = searchableKeys(view)
   if (keys.length === 0 || !search) return undefined
   const pattern = `%${search}%`
-  return { OR: keys.map(k => ({ [k]: { ilike: pattern } })) } as WhereConditions
+  return { OR: keys.map(k => ({ [k]: { ilike: pattern } })) }
 }
 
 /**
@@ -50,7 +50,7 @@ export async function paginateView<T extends Record<string, unknown>>(
   if (baseWhere) andParts.push(baseWhere)
 
   if (Object.keys(params.filters).length > 0) {
-    andParts.push(params.filters as WhereConditions)
+    andParts.push(params.filters)
   }
 
   const searchWhere = buildSearchWhere(view, params.search)
@@ -59,13 +59,13 @@ export async function paginateView<T extends Record<string, unknown>>(
   const conditions: WhereConditions | undefined =
     andParts.length === 0 ? undefined
     : andParts.length === 1 ? andParts[0]
-    : { AND: andParts } as WhereConditions
+    : { AND: andParts }
 
   // Build query
   let query = db.from(view)
   if (userId) query = query.as(userId)
   if (conditions) query = query.where(conditions)
-  if (params.sort) query = query.orderBy(params.sort as keyof T & string, params.order)
+  if (params.sort) query = query.orderBy(params.sort, params.order)
 
   // Count query (same WHERE, no sort/limit)
   let countQuery = db.from(view)
@@ -97,7 +97,7 @@ export function buildTenantWhere(
         { [tenantColumn]: { isNull: true } },
         { [tenantColumn]: tenantId },
       ],
-    } as WhereConditions
+    }
   }
-  return { [tenantColumn]: tenantId } as WhereConditions
+  return { [tenantColumn]: tenantId }
 }
