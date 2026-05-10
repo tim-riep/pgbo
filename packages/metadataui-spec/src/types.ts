@@ -72,6 +72,14 @@ export interface FieldMeta {
   readonly required: boolean
   readonly quick: boolean
   /**
+   * System-managed timestamp marker (issue #61). Set when the column was
+   * declared with `.systemCreatedAt()` / `.systemUpdatedAt()` (or via the
+   * `systemTimestamps()` helper). Always paired with `inForm: false,
+   * immutable: true`. Servers should auto-stamp `updatedAt` on writes
+   * and strip these fields from incoming payloads.
+   */
+  readonly systemManaged?: 'createdAt' | 'updatedAt'
+  /**
    * Discriminator-aware visibility predicate (issue #62). When set, the
    * frontend evaluates these key/value pairs against the current form state
    * to decide whether to render the field. See `VisibleWhen` for semantics.
@@ -154,6 +162,8 @@ export interface PublicFieldMeta {
   readonly inForm: boolean
   readonly required: boolean
   readonly quick: boolean
+  /** System-managed timestamp marker (issue #61). See `FieldMeta.systemManaged`. */
+  readonly systemManaged?: 'createdAt' | 'updatedAt'
   /** Discriminator-aware visibility predicate (issue #62). See `VisibleWhen`. */
   readonly visibleWhen?: VisibleWhen
 }

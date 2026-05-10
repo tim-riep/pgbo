@@ -67,6 +67,34 @@ integer().positive()                // CHECK (col > 0)
 // Type-specific
 numeric().precision(10, 2)          // numeric(10,2)
 timestamp().withTimeZone()          // timestamptz
+
+// System-managed timestamps (issue #61)
+timestamp().withTimeZone().systemCreatedAt()  // NOT NULL DEFAULT now() + form-hidden + immutable
+timestamp().withTimeZone().systemUpdatedAt()  // same + auto-stamps now() on every BO update
+```
+
+### System-managed timestamps
+
+`createdAt` / `updatedAt` are a near-universal pattern. Marking them with the dedicated builders gives you four things at once:
+
+- **DDL**: `timestamptz NOT NULL DEFAULT now()`
+- **Metadata**: `inForm: false, immutable: true, required: false` so auto-generated forms skip them and `meta.fields[i].systemManaged` carries the marker for frontends that want to render an audit timestamp explicitly
+- **BO writes**: `create` ignores any client-supplied value (table DEFAULT fills it); `update` strips client-supplied values **and** auto-stamps every `updatedAt` column with `now()` so the timestamp actually advances on every write
+- **API**: `POST` / `PUT` payloads can't overwrite these fields even if a client sends them
+
+Use the `systemTimestamps()` shorthand to add both columns at once:
+
+```typescript
+import { table, text, systemTimestamps } from '@pgbo/core/schema'
+
+const apps = table('app', {
+  columns: {
+    slug: text().notNull(),
+    name: text().notNull(),
+    ...systemTimestamps(),
+  },
+  primaryKey: ['slug'],
+})
 ```
 
 ## Tables

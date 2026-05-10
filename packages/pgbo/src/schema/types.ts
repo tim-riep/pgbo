@@ -102,6 +102,26 @@ class ColumnBuilderImpl<TsType, Nullable extends boolean, HasDefault extends boo
     return this.clone({ hasTimeZone: true })
   }
 
+  // System-managed timestamps (issue #61)
+
+  systemCreatedAt(): ColumnBuilderImpl<TsType, false, true> {
+    return new ColumnBuilderImpl({
+      ...this._def,
+      isNullable: false,
+      defaultValue: 'now()',
+      systemManaged: 'createdAt',
+    })
+  }
+
+  systemUpdatedAt(): ColumnBuilderImpl<TsType, false, true> {
+    return new ColumnBuilderImpl({
+      ...this._def,
+      isNullable: false,
+      defaultValue: 'now()',
+      systemManaged: 'updatedAt',
+    })
+  }
+
   // DDL
 
   toSQL(columnName: string): string {
