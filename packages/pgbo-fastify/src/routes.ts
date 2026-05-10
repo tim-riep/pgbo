@@ -142,9 +142,9 @@ function resolveKeyFromParam(
 /** Merge the projection's root WHERE with any other conditions. Returns undefined if both are empty. */
 function mergeWhere(a: WhereConditions | undefined, b: Record<string, unknown> | undefined): WhereConditions | undefined {
   if (!a && !b) return undefined
-  if (!a) return b as WhereConditions
+  if (!a) return b
   if (!b) return a
-  return { ...a, ...b } as WhereConditions
+  return { ...a, ...b }
 }
 
 /**
@@ -234,7 +234,7 @@ export function registerProjection(app: FastifyInstance, db: Database, config: P
     let q = queryable.from(viewDef).where(mergeWhere(keyWhere, projection.where) ?? keyWhere)
     if (userId) q = q.as(userId)
     const rows = await q.execute()
-    return rows[0] as Record<string, unknown> | undefined
+    return rows[0]
   }
 
   function assertNotGlobal(row: Record<string, unknown>, reply: FastifyReply): boolean {

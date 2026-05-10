@@ -126,9 +126,9 @@ export function zodToJsonSchema(schema: z.ZodType): Record<string, unknown> {
     for (const [key, val] of Object.entries(shape)) {
       newShape[key] = replaceDateWithString(val)
     }
-    return toJSONSchema(z.object(newShape)) as Record<string, unknown>
+    return toJSONSchema(z.object(newShape))
   }
-  return toJSONSchema(schema) as Record<string, unknown>
+  return toJSONSchema(schema)
 }
 
 function replaceDateWithString(schema: z.ZodType): z.ZodType {

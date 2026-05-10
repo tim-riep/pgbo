@@ -156,6 +156,6 @@ function combineWhere(
   base: Record<string, unknown>,
   extra: Record<string, unknown> | undefined,
 ): WhereConditions {
-  if (!extra) return base as WhereConditions
-  return { ...base, ...extra } as WhereConditions
+  if (!extra) return base
+  return { ...base, ...extra }
 }
