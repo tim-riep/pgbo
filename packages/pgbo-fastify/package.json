@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/fastify",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Fastify route factory for pgbo Business Objects — CRUD, metadata, value helps, pagination",
   "type": "module",
   "main": "dist/index.js",
@@ -48,8 +48,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@metadataui/spec": "1.0.0",
-    "@pgbo/core": "1.1.0"
+    "@metadataui/spec": "1.1.0",
+    "@pgbo/core": "1.2.0"
   },
   "peerDependencies": {
     "fastify": "^5.0.0"

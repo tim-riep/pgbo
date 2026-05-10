@@ -1,5 +1,160 @@
 # @pgbo/core
 
+## 1.2.0
+
+### Minor Changes
+
+- 1f804c1: First-class composite-key support across the metadata-driven UI contract (closes #51).
+
+  A BO whose primary key spans multiple columns (e.g. `(warehouseSlug, slug)`) can now be defined, served, and consumed end-to-end without per-app workarounds.
+
+  ### What's new
+
+  1. **`BOMeta.paramField` widened to `string | readonly string[]`** in `@metadataui/spec`. Single string for the common case (`'id'`, `'slug'`); a tuple of column names for composite keys.
+
+  2. **`urlForDetail` accepts composite-key objects** — `urlForDetail(base, 'storageLocation', { warehouseSlug: 'WH-1', slug: 'A1' })` produces `/bo/storageLocation/(warehouseSlug='WH-1',slug='A1')` (OData-style segment).
+
+  3. **`formatCompositeKey` / `parseCompositeKey` helpers** in `@metadataui/spec` for round-tripping the OData segment. String values are single-quoted with embedded `'` doubled (`O''Brien`) and URL-encoded; numeric values are emitted bare.
+
+  4. **`defineBO({ paramField: ['warehouseSlug', 'slug'] })`** is type-checked and validated at definition time — every entry must be a real column on the root, and the array can't be empty.
+
+  5. **Fastify routes parse `:param` automatically** — when the BO uses a composite key the handler detects the leading `(` and decodes the segment via `parseCompositeKey`, builds the WHERE clause via `keyToWhere`, and feeds the right object into `bo.update` / `bo.delete`.
+
+  6. **OpenAPI schemas widen accordingly** — the `:param` schema describes the OData syntax, and the `/meta` response permits both the string and array forms of `paramField`.
+
+  ### Out of scope for this change
+
+  - **Composite-key targets in associations / link-table compositions** — these throw a clear error directing you to flatten the target's key. Single-column associations from a composite-key BO still work fine.
+  - **Compositions hanging off a composite-key parent** use the first key column as the parent join column. Multi-column joins are uncommon and would need a richer composition definition.
+
+  ### Backward compatibility
+
+  - Single-string `paramField` keeps working unchanged — the contract widens but doesn't break existing consumers.
+  - The `parseCompositeKey` helper is the only new runtime symbol clients need; existing `urlForDetail(base, name, 'main')` calls keep their behaviour.
+
+- 2b0aa74: `diff()` now detects view column-set drift and emits `dropView` + `createView` to recreate stale views (closes #55).
+
+  Before this change, adding/renaming/removing a column on a `view().columns({...})` definition produced no migration operation — the live view was never updated, and queries silently returned missing columns. The workaround was to manually `DROP VIEW … CASCADE` before every migrate.
+
+  ### What's new
+
+  1. **`SnapshotView.columns`** — `introspect()` now captures the output column names of every view from `information_schema.columns`. Optional for backward compat with hand-built fixtures.
+
+  2. **Drift detection in `diff()`** — for each managed view, the diff compares the snapshot's columns against the expected columns the view definition would emit (`expectedViewColumns`). If **any** managed view differs:
+
+     - Emits `DROP VIEW IF EXISTS <name> CASCADE` for every managed view in the snapshot.
+     - Emits `CREATE VIEW <name> AS …` for every view in the schema definitions.
+
+     `CASCADE` handles dependency ordering automatically; managed dependent views get re-created from the schema. Unmanaged views that depend on managed ones are dropped silently — either register them with the schema or recreate them out-of-band.
+
+  3. **New `dropView` operation type** added to `MigrationOperation`.
+
+  4. **Docs** — `docs/migration.md` updated with the view-recreate behaviour and a new "Scope: additive-only" section calling out what the diff engine deliberately doesn't detect (column drops, type changes, renames, etc.).
+
+  ### Backward compatibility
+
+  - Existing migrations that don't touch view definitions produce identical plans — drift detection is skipped when no view has changed.
+  - `SnapshotView.columns` is optional; older callers that construct snapshots by hand keep working (drift detection is skipped for views without a `columns` field).
+
+- ce7b65e: System-managed timestamps (closes #61).
+
+  A near-universal pattern: every entity has `createdAt` / `updatedAt`. Until now, declaring them as plain `timestamp().withTimeZone().notNull().defaultNow()` columns left them looking like any other writable field — `/meta/{name}` returned them with `inForm: true`, auto-generated forms rendered them as datetime inputs, and a naive client submission silently overwrote the timestamps. `updatedAt` also never advanced because the SQL DEFAULT only fires on INSERT.
+
+  ### New API
+
+  `@pgbo/core/schema`:
+
+  - **`.systemCreatedAt()`** / **`.systemUpdatedAt()`** column-builder methods. Set `NOT NULL DEFAULT now()` and tag the column as system-managed.
+  - **`systemTimestamps()`** helper — returns a `{ createdAt, updatedAt }` pair ready to spread into a table's `columns`.
+
+  ```ts
+  import { table, text, systemTimestamps } from "@pgbo/core/schema";
+
+  const apps = table("app", {
+    columns: {
+      slug: text().notNull(),
+      name: text().notNull(),
+      ...systemTimestamps(),
+    },
+    primaryKey: ["slug"],
+  });
+  ```
+
+  `@metadataui/spec`:
+
+  - **`FieldMeta.systemManaged?: 'createdAt' | 'updatedAt'`** + same on `PublicFieldMeta`. Frontends use it to render audit timestamps differently from user-editable fields.
+
+  ### Behaviour wired in
+
+  - **DDL**: `timestamptz NOT NULL DEFAULT now()`
+  - **Metadata**: `inForm: false, immutable: true, required: false` regardless of any other annotations on the column ref
+  - **BO `create`**: client-supplied values for system-managed columns are stripped before the `INSERT`; the table DEFAULT fills them
+  - **BO `update`**: client-supplied values are stripped, then every `updatedAt` column is auto-stamped with `now()` so the timestamp actually advances
+  - **`@pgbo/fastify`**: relies on the BO's strip — no separate work needed; payloads passing through `POST` / `PUT` to `bo.create` / `bo.update` get cleaned before SQL
+
+  ### Backward compatibility
+
+  Purely additive — existing schemas that declare `createdAt`/`updatedAt` as regular columns keep working unchanged. The new behaviour only activates when you opt in via `.systemCreatedAt()` / `.systemUpdatedAt()` / `systemTimestamps()`.
+
+- 77c99d6: Discriminator-aware field visibility via `.visibleWhen()` (closes #62).
+
+  Polymorphic tables typically have one discriminator column (`kind`, `type`, `status`) and other columns that only apply to specific values of it. Until now, `/meta/{name}` returned every field with the same `inForm: true`, with no signal that some are conditional — every metadata-driven UI had to hard-code per-table dispatch logic.
+
+  ### New API
+
+  `@pgbo/core/schema`:
+
+  - **`col(...).visibleWhen(predicate)`** column annotation. Three predicate shapes:
+
+    | Shape                                    | Semantics         |
+    | ---------------------------------------- | ----------------- |
+    | `{ kind: 'iframe' }`                     | Equality          |
+    | `{ kind: ['iframe', 'esm_upload'] }`     | OR over the array |
+    | `{ kind: 'iframe', requiresAuth: true }` | AND across keys   |
+
+    Throws on empty predicates so accidentally-empty calls fail at definition time.
+
+  `@metadataui/spec`:
+
+  - **`VisibleWhen`** type — `Readonly<Record<string, unknown | readonly unknown[]>>`.
+  - **`FieldMeta.visibleWhen?: VisibleWhen`** + same on `PublicFieldMeta`. Frontends evaluate it against the current form state on every change to show/hide the field.
+
+  ### Example
+
+  ```ts
+  const appView = view("app_view")
+    .from(apps)
+    .columns({
+      slug: col("slug").required().immutable(),
+      kind: col("kind").required(), // discriminator
+      name: col("name").required(),
+      version: col("version").required().visibleWhen({ kind: "esm_upload" }),
+      bundleRef: col("bundleRef").visibleWhen({ kind: "esm_upload" }),
+      iframeUrl: col("iframeUrl").visibleWhen({ kind: "iframe" }),
+    });
+  ```
+
+  `/meta/app` now emits `version.visibleWhen = { kind: 'esm_upload' }`. A metadata-driven form hides the field unless `formState.kind === 'esm_upload'`.
+
+  ### `required` composes
+
+  `.required().visibleWhen({...})` means _required when visible_. The frontend skips required validation while the field is hidden, and strips hidden fields from the submit payload so toggling the discriminator doesn't carry stale data.
+
+  ### Server-side enforcement (out of scope)
+
+  Stripping hidden columns server-side is a v1.5 follow-up. For now the frontend is responsible — a malicious client can still submit irrelevant fields. The metadata-driven UI benefit lands first; defensive server-side stripping later.
+
+  ### Backward compatibility
+
+  Purely additive — fields without `.visibleWhen()` keep `visibleWhen: undefined` and are always visible.
+
+### Patch Changes
+
+- Updated dependencies [1f804c1]
+- Updated dependencies [ce7b65e]
+- Updated dependencies [77c99d6]
+  - @metadataui/spec@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes
