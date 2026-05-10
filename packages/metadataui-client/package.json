@@ -1,6 +1,6 @@
 {
   "name": "@metadataui/client",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework-agnostic HTTP client for the metadata-driven UI contract — URL composition, typed fetch, metadata cache",
   "type": "module",
   "main": "dist/index.js",
@@ -50,7 +50,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@metadataui/spec": "1.0.0"
+    "@metadataui/spec": "1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DEPRECATED — renamed to @metadataui/client. This package re-exports from @metadataui/client during the deprecation cycle.",
   "type": "module",
   "main": "dist/index.js",
@@ -46,7 +46,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@metadataui/client": "1.0.0"
+    "@metadataui/client": "1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

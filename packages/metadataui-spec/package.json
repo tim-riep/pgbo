@@ -1,6 +1,6 @@
 {
   "name": "@metadataui/spec",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Metadata-driven UI contract — types, URL builders, and conventions for HTTP servers describing forms, lists, dropdowns, and actions",
   "type": "module",
   "main": "dist/index.js",

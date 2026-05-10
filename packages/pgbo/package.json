@@ -1,6 +1,6 @@
 {
   "name": "@pgbo/core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Type-safe PostgreSQL Business Objects — tables, views, domains, auto-migration, native i18n",
   "type": "module",
   "main": "dist/index.js",
@@ -88,7 +88,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@metadataui/spec": "1.0.0",
+    "@metadataui/spec": "1.1.0",
     "pg": "^8.16.0"
   },
   "devDependencies": {

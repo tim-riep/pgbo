@@ -1,5 +1,12 @@
 # @pgbo/client
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [1f804c1]
+  - @metadataui/client@1.1.0
+
 ## 0.3.0
 
 ### Minor Changes — DEPRECATED
