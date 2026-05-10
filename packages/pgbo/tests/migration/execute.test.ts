@@ -151,6 +151,93 @@ describe('Migration execution', () => {
     }
   })
 
+  it('recreates a view when its column set drifts from the snapshot (issue #55)', async () => {
+    const driftDb = await createTestDatabase({ connectionString, schema: [] })
+    try {
+      // Round 1 — initial schema with a 2-column view
+      const round1Table = table('thing', {
+        columns: { id: integer().notNull(), slug: text().notNull() },
+        primaryKey: ['id'],
+      })
+      const round1View = view('thing_view').from(round1Table).columns({
+        id: col('id'),
+        slug: col('slug'),
+      })
+
+      const plan1 = diff(
+        { domains: [], enums: [], tables: [round1Table], views: [round1View] },
+        await introspect(driftDb.db),
+      )
+      await migrate(driftDb.db, plan1)
+
+      const after1 = await introspect(driftDb.db)
+      expect(after1.views.find(v => v.name === 'thing_view')?.columns).toEqual(['id', 'slug'])
+
+      // Round 2 — add `name` to the table + the view. Without #55's fix the
+      // diff plan would only ALTER TABLE; the view would stay 2-columns wide.
+      const round2Table = table('thing', {
+        columns: { id: integer().notNull(), slug: text().notNull(), name: text() },
+        primaryKey: ['id'],
+      })
+      const round2View = view('thing_view').from(round2Table).columns({
+        id: col('id'),
+        slug: col('slug'),
+        name: col('name'),
+      })
+
+      const plan2 = diff(
+        { domains: [], enums: [], tables: [round2Table], views: [round2View] },
+        await introspect(driftDb.db),
+      )
+
+      const ops = plan2.operations.map(o => o.type)
+      expect(ops).toContain('addColumn')
+      expect(ops).toContain('dropView')
+      expect(ops).toContain('createView')
+
+      await migrate(driftDb.db, plan2)
+
+      const after2 = await introspect(driftDb.db)
+      expect(after2.views.find(v => v.name === 'thing_view')?.columns).toEqual(['id', 'slug', 'name'])
+
+      // And the new column is queryable through the view
+      await driftDb.db.query("INSERT INTO thing (id, slug, name) VALUES (1, 'a', 'Alpha')")
+      const rows = await driftDb.db.query<{ id: number; slug: string; name: string }>(
+        'SELECT id, slug, name FROM thing_view ORDER BY id',
+      )
+      expect(rows).toEqual([{ id: 1, slug: 'a', name: 'Alpha' }])
+    } finally {
+      await driftDb.dispose()
+    }
+  })
+
+  it('does NOT recreate views when nothing changed', async () => {
+    const stableDb = await createTestDatabase({ connectionString, schema: [] })
+    try {
+      const t = table('thing', {
+        columns: { id: integer().notNull(), slug: text().notNull() },
+        primaryKey: ['id'],
+      })
+      const v = view('thing_view').from(t).columns({ id: col('id'), slug: col('slug') })
+
+      const plan1 = diff(
+        { domains: [], enums: [], tables: [t], views: [v] },
+        await introspect(stableDb.db),
+      )
+      await migrate(stableDb.db, plan1)
+
+      const plan2 = diff(
+        { domains: [], enums: [], tables: [t], views: [v] },
+        await introspect(stableDb.db),
+      )
+      // Same definition → no DROP/CREATE for the view
+      expect(plan2.operations.map(o => o.type)).not.toContain('dropView')
+      expect(plan2.operations.map(o => o.type)).not.toContain('createView')
+    } finally {
+      await stableDb.dispose()
+    }
+  })
+
   it('records migration in _pgbo_migrations table', async () => {
     const rows = await testDb.db.query<{ id: number; applied_at: Date; [key: string]: unknown }>(
       'SELECT id, applied_at FROM _pgbo_migrations ORDER BY id',
