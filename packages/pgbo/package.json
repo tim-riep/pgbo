@@ -94,10 +94,10 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/pg": "^8.15.4",
-    "eslint": "^10.5.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.1",
-    "vitest": "^4.1.9",
+    "eslint": "^10.8.0",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
